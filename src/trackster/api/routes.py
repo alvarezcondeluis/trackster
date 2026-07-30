@@ -5,7 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException
 
 from ..models import Song
-from ..services.song_service import get_random_song
+from ..services.song_service import get_random_song, get_songs
 
 router = APIRouter(prefix="/api")
 
@@ -91,3 +91,28 @@ def random_song(
             status_code=500,
             detail=f"Failed to fetch song: {str(e)}"
         )
+
+
+@router.get("/songs/batch", response_model=list[Song])
+def random_songs(
+    count: int = 1,
+    difficulty: str = "medium",
+    fetch_preview: bool = True,
+    era: str = "all",
+) -> list[Song]:
+    """Get `count` random songs for the game.
+
+    count == 1 returns a single-song list (robust preview retry preserved);
+    count > 1 returns that many distinct songs (used by Higher or Lower).
+
+    Example:
+        GET /api/songs/batch?count=2&difficulty=medium&era=2000s
+    """
+    if count < 1 or count > 10:
+        raise HTTPException(status_code=400, detail="count must be between 1 and 10")
+    try:
+        return get_songs(count, difficulty, fetch_preview=fetch_preview, era=era)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch songs: {str(e)}")

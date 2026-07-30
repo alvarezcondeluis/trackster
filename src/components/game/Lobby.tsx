@@ -1,6 +1,8 @@
 import { Sparkles, Trash2, UserPlus, Music, CheckCircle } from "lucide-react";
 import { Player } from "@/types/game";
 import { usePlaybackMode } from "@/hooks/usePlaybackMode";
+import { useGameMode } from "@/hooks/useGameMode";
+import { GAME_MODES } from "@/game/modes/registry";
 import { PlaybackSettings } from "@/components/settings/PlaybackSettings";
 import { EraSettings } from "@/components/settings/EraSettings";
 
@@ -28,7 +30,12 @@ export function Lobby({
   isAuthenticating,
 }: LobbyProps) {
   const isUriMode = usePlaybackMode() === "preview";
-  const canStart = players.length >= 2 && (isUriMode || spotifyConnected);
+  const mode = GAME_MODES[useGameMode()];
+  const { minPlayers, needsAudio } = mode;
+  const needed = Math.max(0, minPlayers - players.length);
+  // Spotify is only a prerequisite for audio modes playing full songs (SDK).
+  const spotifyBlocking = needsAudio && !isUriMode && !spotifyConnected;
+  const canStart = players.length >= minPlayers && !spotifyBlocking;
 
   return (
     <section className="animate-slide-up flex flex-col gap-3">
@@ -36,38 +43,44 @@ export function Lobby({
           relative z-20 keeps its dropdowns above the players list below
           (each card-surface has backdrop-filter → its own stacking context). */}
       <div className="card-surface relative z-20 space-y-3 rounded-2xl p-4">
-        {/* Slim Spotify status (one line) */}
-        {isUriMode ? (
-          <div className="flex items-center gap-2 text-sm font-semibold text-success">
-            <CheckCircle className="h-4 w-4" />
-            <span>Spotify URI Mode · opens in your app</span>
-          </div>
-        ) : spotifyConnected ? (
-          <div className="flex items-center gap-2 text-sm font-semibold text-success">
-            <CheckCircle className="h-4 w-4" />
-            <span>Spotify Connected</span>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
-              <Music className="h-4 w-4" />
-              Connect to Spotify
-            </span>
-            <button
-              onClick={onConnectSpotify}
-              disabled={isAuthenticating}
-              className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground glow-primary transition-transform active:scale-95 disabled:opacity-50"
-            >
-              {isAuthenticating ? "Redirecting…" : "Connect"}
-            </button>
-          </div>
+        {/* Spotify status + playback settings only matter for audio modes.
+            Audio-free modes (e.g. Higher or Lower) just compare metadata. */}
+        {needsAudio && (
+          <>
+            {/* Slim Spotify status (one line) */}
+            {isUriMode ? (
+              <div className="flex items-center gap-2 text-sm font-semibold text-success">
+                <CheckCircle className="h-4 w-4" />
+                <span>Spotify URI Mode · opens in your app</span>
+              </div>
+            ) : spotifyConnected ? (
+              <div className="flex items-center gap-2 text-sm font-semibold text-success">
+                <CheckCircle className="h-4 w-4" />
+                <span>Spotify Connected</span>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                  <Music className="h-4 w-4" />
+                  Connect to Spotify
+                </span>
+                <button
+                  onClick={onConnectSpotify}
+                  disabled={isAuthenticating}
+                  className="shrink-0 rounded-xl bg-primary px-3 py-1.5 text-sm font-bold text-primary-foreground glow-primary transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  {isAuthenticating ? "Redirecting…" : "Connect"}
+                </button>
+              </div>
+            )}
+
+            <div className="h-px bg-border" />
+          </>
         )}
 
-        <div className="h-px bg-border" />
-
-        {/* Settings side by side */}
-        <div className="grid grid-cols-2 gap-4">
-          <PlaybackSettings />
+        {/* Settings — Playback only when audio is used; Era always applies. */}
+        <div className={`grid gap-4 ${needsAudio ? "grid-cols-2" : "grid-cols-1"}`}>
+          {needsAudio && <PlaybackSettings />}
           <EraSettings />
         </div>
 
@@ -101,7 +114,9 @@ export function Lobby({
       <div className="flex max-h-[30vh] flex-col gap-2 overflow-y-auto pr-1">
         {players.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-            Add at least 2 players to start the party.
+            {minPlayers <= 1
+              ? "Add yourself to play solo — or bring friends."
+              : `Add at least ${minPlayers} players to start the party.`}
           </div>
         )}
         {players.map((p, i) => (
@@ -132,11 +147,11 @@ export function Lobby({
         disabled={!canStart}
         className="w-full rounded-2xl bg-neon py-4 text-lg font-black uppercase tracking-wide text-neon-foreground transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none enabled:glow-primary enabled:animate-pulse-glow"
       >
-        {!isUriMode && !spotifyConnected
+        {spotifyBlocking
           ? "Connect Spotify First"
           : canStart
             ? "Start Match 🎵"
-            : `Need ${2 - players.length} more player${2 - players.length !== 1 ? "s" : ""}`}
+            : `Need ${needed} more player${needed !== 1 ? "s" : ""}`}
       </button>
     </section>
   );

@@ -2,7 +2,7 @@
  * Game types and interfaces
  */
 
-export type GameState = "setup" | "playing" | "revealed" | "leaderboard";
+export type GameState = "mode-select" | "setup" | "round" | "leaderboard";
 
 export interface Player {
   id: string;

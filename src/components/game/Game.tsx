@@ -5,25 +5,33 @@
 
 import { useEffect, useState } from "react";
 import { GameState, Player, Song } from "@/types/game";
-import { fetchRandomSong, checkBackendHealth } from "@/services/api";
+import { fetchRandomSongs, checkBackendHealth } from "@/services/api";
 import { startSpotifyAuth, getStoredToken, clearToken } from "@/services/spotifyAuth";
 import { usePlaybackMode } from "@/hooks/usePlaybackMode";
 import { useEra } from "@/hooks/useEra";
+import { useGameMode } from "@/hooks/useGameMode";
+import { setGameMode } from "@/config/gameMode";
+import { GAME_MODES } from "@/game/modes/registry";
+import type { GameModeId, RoundResult } from "@/game/modes/types";
 import { loadSpotifySDK, initializePlayer, startDeviceMonitor, isPlayerReady } from "@/services/spotifyWebSdk";
 import { Lobby } from "./Lobby";
-import { Playing } from "./Playing";
-import { Revealed } from "./Revealed";
+import { ModeSelect } from "./ModeSelect";
 import { Leaderboard } from "./Leaderboard";
-import { AlertCircle } from "lucide-react";
+import { Loading } from "./Loading";
+import { AlertCircle, ArrowLeft } from "lucide-react";
+
+// Survives the full-page Spotify OAuth redirect so we can return the user to the
+// Lobby (with their crew) instead of dropping them back on the mode-select screen.
+const RESUME_KEY = "trackster:resume-setup";
 
 export function Game() {
   // Game state
-  const [gameState, setGameState] = useState<GameState>("setup");
+  const [gameState, setGameState] = useState<GameState>("mode-select");
   const [players, setPlayers] = useState<Player[]>([]);
   const [nameInput, setNameInput] = useState("");
   const [round, setRound] = useState(1);
   const [turnIndex, setTurnIndex] = useState(0);
-  const [currentSong, setCurrentSong] = useState<Song | null>(null);
+  const [currentSongs, setCurrentSongs] = useState<Song[] | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backendConnected, setBackendConnected] = useState(false);
@@ -37,6 +45,29 @@ export function Game() {
 
   // Reactive era filter — which years of music are eligible
   const era = useEra();
+
+  // Selected game mode → its definition (registry is the single source of truth)
+  const modeId = useGameMode();
+  const mode = GAME_MODES[modeId];
+
+  // Audio-free modes (e.g. Higher or Lower) only compare metadata, so they never
+  // touch Spotify. Everything Spotify-related below is gated on this.
+  const needsAudio = mode.needsAudio;
+  const requiresSpotify = needsAudio && isSdkMode;
+
+  // Returning from the Spotify OAuth redirect: restore the Lobby + crew.
+  useEffect(() => {
+    const raw = sessionStorage.getItem(RESUME_KEY);
+    if (!raw) return;
+    sessionStorage.removeItem(RESUME_KEY);
+    try {
+      const saved = JSON.parse(raw) as { players?: Player[] };
+      if (saved.players?.length) setPlayers(saved.players);
+    } catch {
+      /* ignore malformed resume state */
+    }
+    setGameState("setup");
+  }, []);
 
   const currentPlayer = players[turnIndex];
 
@@ -75,6 +106,9 @@ export function Game() {
   // so switching modes applies live without a page reload.
   useEffect(() => {
     const initPlayback = async () => {
+      // Audio-free modes never play anything — skip all Spotify setup.
+      if (!needsAudio) return;
+
       console.log(`🎵 Playback Pipeline: ${isSdkMode ? "🎵 SDK (Full Songs)" : "⚡ Preview (30s clips)"}`);
 
       // Preview mode needs no Spotify connection
@@ -130,16 +164,17 @@ export function Game() {
     };
 
     initPlayback();
-  }, [playbackMode, isSdkMode]);
+  }, [playbackMode, isSdkMode, needsAudio]);
 
-  // Fetch a random song when entering playing state
+  // Fetch the round's song(s) when entering a round (count depends on the mode)
   useEffect(() => {
-    if (gameState === "playing" && !currentSong) {
-      fetchSong();
+    if (gameState === "round" && !currentSongs) {
+      fetchSongs();
     }
-  }, [gameState, currentSong]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, currentSongs]);
 
-  const fetchSong = async () => {
+  const fetchSongs = async () => {
     if (!backendConnected) {
       setError("Backend not connected");
       return;
@@ -150,20 +185,37 @@ export function Game() {
 
     const t0 = performance.now();
     try {
-      // SDK mode plays by track ID, so it doesn't need a preview URL — skip the
-      // backend's preview hunt. Preview mode needs one.
-      const song = await fetchRandomSong("medium", era, !isSdkMode);
+      // Only preview-playback modes need a preview URL. SDK mode plays by track
+      // ID, and audio-free modes don't play at all — both skip the backend's
+      // (Spotify-backed) preview hunt.
+      const fetchPreview = needsAudio && !isSdkMode;
+      const songs = await fetchRandomSongs(mode.songsPerRound, "medium", era, fetchPreview);
       const ms = Math.round(performance.now() - t0);
-      console.log(`⏱️ Song ready in ${ms}ms (era: ${era}) — ${song.name} · ${song.artist_name}`);
-      setCurrentSong(song);
+      console.log(`⏱️ ${songs.length} song(s) ready in ${ms}ms (mode: ${modeId}, era: ${era})`);
+      songs.forEach((s) =>
+        console.log(`⭐ Popularity ${s.popularity ?? "?"} — ${s.name} · ${s.artist_name}`),
+      );
+      setCurrentSongs(songs);
     } catch (err) {
       const ms = Math.round(performance.now() - t0);
-      const message = err instanceof Error ? err.message : "Failed to fetch song";
+      const message = err instanceof Error ? err.message : "Failed to fetch songs";
       setError(message);
       console.error(`❌ Song fetch failed after ${ms}ms:`, err);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const chooseMode = (id: GameModeId) => {
+    setGameMode(id);       // persist + reactive
+    setGameState("setup"); // proceed to the lobby
+  };
+
+  // Return to the main window (mode select), abandoning the current round.
+  const goHome = () => {
+    setCurrentSongs(null);
+    setError(null);
+    setGameState("mode-select");
   };
 
   const addPlayer = () => {
@@ -186,6 +238,8 @@ export function Game() {
     setIsAuthenticating(true);
     try {
       console.log("🔐 Starting Spotify authentication...");
+      // Remember where we are so the OAuth round-trip returns us to the Lobby.
+      sessionStorage.setItem(RESUME_KEY, JSON.stringify({ players }));
       await startSpotifyAuth();
       // This will redirect to Spotify OAuth callback, so we don't need to do anything after
       // The callback page will handle initializing the player
@@ -201,22 +255,23 @@ export function Game() {
   };
 
   const startMatch = () => {
-    if (!spotifyConnected && isSdkMode) {
+    if (requiresSpotify && !spotifyConnected) {
       setError("Please connect to Spotify first");
       return;
     }
 
     setRound(1);
     setTurnIndex(0);
-    setCurrentSong(null);
-    setGameState("playing");
+    setCurrentSongs(null);
+    setGameState("round");
   };
 
-  const scorePoint = (correct: boolean) => {
-    if (correct && currentPlayer) {
+  // A round finished — apply the mode's result, then show the leaderboard.
+  const handleResult = (result: RoundResult) => {
+    if (result.points > 0 && currentPlayer) {
       setPlayers((p) =>
         p.map((x) =>
-          x.id === currentPlayer.id ? { ...x, score: x.score + 1 } : x
+          x.id === currentPlayer.id ? { ...x, score: x.score + result.points } : x
         )
       );
     }
@@ -227,8 +282,8 @@ export function Game() {
     const next = (turnIndex + 1) % players.length;
     if (next === 0) setRound((r) => r + 1);
     setTurnIndex(next);
-    setCurrentSong(null);
-    setGameState("playing");
+    setCurrentSongs(null);
+    setGameState("round");
   };
 
 
@@ -280,6 +335,15 @@ export function Game() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-2.5">
+          {gameState !== "mode-select" && (
+            <button
+              onClick={goHome}
+              aria-label="Back to modes"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-muted-foreground transition hover:bg-primary/10 hover:text-primary active:scale-95"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+          )}
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-primary/20 glow-primary">
             <svg
               className="h-6 w-6 text-primary animate-[spin_6s_linear_infinite]"
@@ -306,13 +370,16 @@ export function Game() {
         </div>
       )}
 
-      {isLoading && gameState === "playing" && (
-        <div className="mt-4 text-center text-sm text-muted-foreground">
-          Loading song...
+      {isLoading && gameState === "round" && (
+        <div className="mt-6">
+          <Loading label="Loading song…" />
         </div>
       )}
 
       <div className="mt-6 flex-1">
+        {gameState === "mode-select" && (
+          <ModeSelect current={modeId} onChoose={chooseMode} />
+        )}
         {gameState === "setup" && (
           <Lobby
             players={players}
@@ -326,19 +393,12 @@ export function Game() {
             isAuthenticating={isAuthenticating}
           />
         )}
-        {gameState === "playing" && currentPlayer && (
-          <Playing
+        {gameState === "round" && currentPlayer && currentSongs && (
+          <mode.Round
+            songs={currentSongs}
+            player={currentPlayer}
             round={round}
-            player={currentPlayer}
-            song={currentSong}
-            onReveal={() => setGameState("revealed")}
-          />
-        )}
-        {gameState === "revealed" && currentPlayer && (
-          <Revealed
-            player={currentPlayer}
-            song={currentSong}
-            onScore={scorePoint}
+            onResult={handleResult}
           />
         )}
         {gameState === "leaderboard" && (

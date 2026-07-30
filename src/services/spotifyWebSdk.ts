@@ -117,6 +117,7 @@ export async function initializePlayer(
         lastLoggedState.current !== state.current_track?.name;
 
       if (stateChanged) {
+        console.log(state)
         console.log("🎵 Player state changed:", {
           isPlaying: !state.paused,
           current: state.current_track?.name,

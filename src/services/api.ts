@@ -46,6 +46,30 @@ export async function fetchRandomSong(
 }
 
 /**
+ * Fetch N random songs in one call (used by modes that need >1 song per round,
+ * e.g. Higher or Lower). count=1 returns a single-element array, so the game
+ * orchestrator can use this uniformly for every mode.
+ */
+export async function fetchRandomSongs(
+  count: number,
+  difficulty: "easy" | "medium" | "hard" = "medium",
+  era: EraKey = "all",
+  fetchPreview: boolean = true,
+): Promise<Song[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/songs/batch?count=${count}&difficulty=${difficulty}&fetch_preview=${fetchPreview}&era=${era}`,
+    { method: "GET", headers: { "Content-Type": "application/json" } },
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || "Failed to fetch songs");
+  }
+
+  return response.json();
+}
+
+/**
  * Health check endpoint
  */
 export async function checkBackendHealth(): Promise<boolean> {

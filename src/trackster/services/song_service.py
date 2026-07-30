@@ -73,39 +73,21 @@ def get_random_song(
             f"difficulty must be one of {list(DIFFICULTY_THRESHOLDS.keys())}"
         )
 
-    min_popularity = DIFFICULTY_THRESHOLDS[difficulty]
-
-    # Resolve the era key into a concrete (min, max) year range.
-    # Unknown era → "all" so a bad param never breaks the game.
-    year_min, year_max = ERA_RANGES.get(era, ERA_RANGES["all"])
-
-    # Build the query: always filter by popularity (difficulty), and add year
-    # bounds only when the chosen era has them.
-    query = supabase.table("songs").select("*").gte("popularity", min_popularity)
-    if year_min is not None:
-        query = query.gte("year", year_min)
-    if year_max is not None:
-        query = query.lte("year", year_max)
-    response = query.limit(1000).execute()
-
-    if not response.data:
-        raise ValueError(
-            f"No songs found for difficulty '{difficulty}' + era '{era}'. "
-            f"Try a lower difficulty or a wider era."
-        )
+    # Draw a candidate pool matching difficulty + era (shared query builder).
+    pool = _query_pool(difficulty, era)
 
     attempts = 0
     while attempts < max_attempts:
         attempts += 1
 
         # Prefer songs with preview URLs already in database
-        songs_with_preview = [s for s in response.data if s.get("preview_url")]
+        songs_with_preview = [s for s in pool if s.get("preview_url")]
         if songs_with_preview:
             song_data = random.choice(songs_with_preview)
             print(f"✅ Found song with preview in database")
         else:
             # No songs with preview in batch, pick random and try to fetch
-            song_data = random.choice(response.data)
+            song_data = random.choice(pool)
 
         # Only look up a preview when the caller needs one (preview / hidden-audio
         # mode). SDK "Full Song" mode plays by track ID, so we skip this entirely
@@ -133,30 +115,123 @@ def get_random_song(
         has_preview = "✅" if song_data.get("preview_url") else "❌"
         print(f"{has_preview} {song_data.get('name', 'Unknown')} by {song_data.get('artist_name', 'Unknown')}")
 
-    # Fetch album art from Spotify (with Supabase caching)
-    # First check if already cached in Supabase
-    if song_data.get("album_art_cached_url"):
-        print(f"✅ Using previously cached image from Supabase")
-        song_data["album_art_url"] = song_data["album_art_cached_url"]
-    else:
-        album_art = get_track_album_art(song_data["id"], debug=debug)
-        if album_art:
-            song_data["album_name"] = album_art.get("album_name")
-            song_data["album_art_url"] = album_art.get("album_art_url")
-
-            # Cache image to Supabase Storage (for faster delivery)
-            if song_data.get("album_art_url"):
-                print(f"💾 Caching album art to Supabase...")
-                cached_url = cache_album_art_to_supabase(
-                    track_id=song_data["id"],
-                    image_url=song_data["album_art_url"],
-                    album_name=song_data.get("album_name", "Unknown"),
-                    debug=debug,
-                )
-                if cached_url:
-                    song_data["album_art_url"] = cached_url
-                    print(f"✅ Image cached to Supabase")
-                else:
-                    print(f"⚠️ Caching failed, using Spotify URL")
-
+    _attach_album_art(song_data, debug=debug)
     return Song(**song_data)
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers + multi-song fetch (used by modes that need >1 song per round)
+# ---------------------------------------------------------------------------
+
+
+def _query_pool(difficulty: str, era: str) -> list[dict]:
+    """Return a candidate pool of songs matching difficulty + era.
+
+    Single source of truth for the pool query — reused by both the single-song
+    and multi-song fetchers.
+
+    Raises:
+        ValueError: if difficulty is invalid or the pool is empty.
+    """
+    if difficulty not in DIFFICULTY_THRESHOLDS:
+        raise ValueError(
+            f"difficulty must be one of {list(DIFFICULTY_THRESHOLDS.keys())}"
+        )
+
+    min_popularity = DIFFICULTY_THRESHOLDS[difficulty]
+    year_min, year_max = ERA_RANGES.get(era, ERA_RANGES["all"])
+
+    query = supabase.table("songs").select("*").gte("popularity", min_popularity)
+    if year_min is not None:
+        query = query.gte("year", year_min)
+    if year_max is not None:
+        query = query.lte("year", year_max)
+    response = query.limit(1000).execute()
+
+    if not response.data:
+        raise ValueError(
+            f"No songs found for difficulty '{difficulty}' + era '{era}'. "
+            f"Try a lower difficulty or a wider era."
+        )
+    return response.data
+
+
+def _attach_album_art(song_data: dict, debug: bool = False) -> None:
+    """Populate album_art_url on song_data, using the Supabase cache when possible.
+
+    Mutates song_data in place.
+    """
+    if song_data.get("album_art_cached_url"):
+        print("✅ Using previously cached image from Supabase")
+        song_data["album_art_url"] = song_data["album_art_cached_url"]
+        return
+
+    album_art = get_track_album_art(song_data["id"], debug=debug)
+    if not album_art:
+        return
+
+    song_data["album_name"] = album_art.get("album_name")
+    song_data["album_art_url"] = album_art.get("album_art_url")
+
+    if song_data.get("album_art_url"):
+        print("💾 Caching album art to Supabase...")
+        cached_url = cache_album_art_to_supabase(
+            track_id=song_data["id"],
+            image_url=song_data["album_art_url"],
+            album_name=song_data.get("album_name", "Unknown"),
+            debug=debug,
+        )
+        if cached_url:
+            song_data["album_art_url"] = cached_url
+            print("✅ Image cached to Supabase")
+        else:
+            print("⚠️ Caching failed, using Spotify URL")
+
+
+def get_random_songs(
+    count: int,
+    difficulty: str = "medium",
+    fetch_preview: bool = True,
+    era: str = "all",
+    debug: bool = False,
+) -> list[Song]:
+    """Fetch `count` DISTINCT random songs (best-effort preview per song).
+
+    Used by modes that need more than one song per round (e.g. Higher or Lower).
+    Unlike get_random_song, this does NOT aggressively retry for previews — it
+    picks distinct songs and attaches a preview only if readily available.
+    """
+    pool = _query_pool(difficulty, era)
+    if len(pool) < count:
+        raise ValueError(
+            f"Not enough songs for difficulty '{difficulty}' + era '{era}' "
+            f"(need {count}, found {len(pool)}). Widen the filters."
+        )
+
+    chosen = random.sample(pool, count)
+    songs: list[Song] = []
+    for song_data in chosen:
+        if fetch_preview and not song_data.get("preview_url"):
+            preview_url = get_track_preview_url(song_data["id"], debug=debug)
+            if preview_url:
+                song_data["preview_url"] = preview_url
+        _attach_album_art(song_data, debug=debug)
+        songs.append(Song(**song_data))
+    return songs
+
+
+def get_songs(
+    count: int = 1,
+    difficulty: str = "medium",
+    fetch_preview: bool = True,
+    era: str = "all",
+    debug: bool = False,
+) -> list[Song]:
+    """Uniform entry point for the game: return a list of `count` songs.
+
+    count == 1 delegates to get_random_song (keeps its robust preview retry);
+    count > 1 uses get_random_songs (distinct, best-effort previews).
+    """
+    if count <= 1:
+        return [get_random_song(difficulty, fetch_preview=fetch_preview, era=era, debug=debug)]
+    return get_random_songs(count, difficulty, fetch_preview=fetch_preview, era=era, debug=debug)
