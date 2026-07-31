@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Debug script to test Spotify API and song service."""
 
-from src.trackster.services.song_service import get_random_song
-from src.trackster.services.spotify import get_track_preview_url
+from src.echo.services.song_service import get_random_song
+from src.echo.services.spotify import get_track_preview_url
 
 print("=" * 60)
-print("TRACKSTER SPOTIFY DEBUG SCRIPT")
+print("ECHO SPOTIFY DEBUG SCRIPT")
 print("=" * 60)
 
 # Test 1: Try to get a song with debug output
@@ -36,7 +36,7 @@ else:
 # Test 3: Test a song from our database
 print("\n\n[TEST 3] Testing random song from database")
 print("-" * 60)
-from src.trackster.db import supabase
+from src.echo.db import supabase
 
 response = supabase.table("songs").select("id, name").limit(1).execute()
 if response.data:

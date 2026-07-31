@@ -8,7 +8,7 @@ export function Header() {
           <Disc3 className="h-6 w-6 text-primary animate-[spin_6s_linear_infinite]" />
         </div>
         <h1 className="text-3xl font-black tracking-tight text-gradient-neon">
-          Trackster
+          Echo
         </h1>
       </div>
       <span className="rounded-full border border-border bg-card/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

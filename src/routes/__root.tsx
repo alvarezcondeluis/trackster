@@ -12,6 +12,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { startPreload, subscribeToPreload } from "@/services/sdkPreloader";
+import { useApplyTheme } from "@/config/theme";
 
 function NotFoundComponent() {
   return (
@@ -78,10 +79,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Trackster — Music Guessing Party Game" },
+      { title: "Echo — Music Guessing Party Game" },
       { name: "description", content: "A local multiplayer music-guessing party game for your next night in." },
-      { name: "author", content: "Trackster" },
-      { property: "og:title", content: "Trackster — Music Guessing Party Game" },
+      { name: "author", content: "Echo" },
+      { property: "og:title", content: "Echo — Music Guessing Party Game" },
       { property: "og:description", content: "A local multiplayer music-guessing party game for your next night in." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -118,6 +119,9 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [sdkLoading, setSdkLoading] = useState(true);
+
+  // Apply the selected color theme app-wide (and live on change).
+  useApplyTheme();
 
   // Preload Spotify SDK on app start (saves 2-5 seconds when user clicks login)
   useEffect(() => {

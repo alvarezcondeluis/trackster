@@ -10,7 +10,7 @@ categories), optionally attaches genres from ``artists.csv``, drops unusable
 rows, and writes a single Parquet file to ``data/processed``.
 
 Usage:
-    uv run python -m trackster.preprocess
+    uv run python -m echo.preprocess
 """
 
 import ast
@@ -39,7 +39,7 @@ def _load_tracks() -> pd.DataFrame:
     path = RAW_DIR / "tracks.csv"
     if not path.exists():
         sys.exit(
-            f"{path} not found. Run `uv run python -m trackster.download` first."
+            f"{path} not found. Run `uv run python -m echo.download` first."
         )
     print(f"Loading {path.name} ...")
     return pd.read_csv(path)

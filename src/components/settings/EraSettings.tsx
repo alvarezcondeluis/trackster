@@ -1,7 +1,7 @@
 /**
  * Era Settings — compact dropdown
  * Shows the current era; tap to reveal all eras in a small popover.
- * Applies live (no reload), same pattern as PlaybackSettings.
+ * Applies live (no reload) via the reactive era setting.
  */
 
 import { useEffect, useRef, useState } from "react";

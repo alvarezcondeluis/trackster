@@ -36,7 +36,7 @@ export function createPersistentSetting<T extends string>(config: {
   const { key, defaultValue, isValid, onChangeLog } = config;
 
   // Per-setting event name, derived from the key so two settings never collide.
-  const EVENT = `trackster:setting:${key}`;
+  const EVENT = `echo:setting:${key}`;
 
   const get = (): T => {
     if (typeof window === "undefined") return defaultValue;

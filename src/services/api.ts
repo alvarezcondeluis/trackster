@@ -14,50 +14,19 @@ export interface ApiError {
 }
 
 /**
- * Fetch a random song from the backend
- * Always fetches preview URLs for hidden audio playback
- */
-export async function fetchRandomSong(
-  difficulty: "easy" | "medium" | "hard" = "medium",
-  era: EraKey = "all",
-  fetchPreview: boolean = true,
-): Promise<Song> {
-  try {
-    const response = await fetch(
-      `${API_BASE_URL}/songs/random?difficulty=${difficulty}&fetch_preview=${fetchPreview}&era=${era}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.detail || "Failed to fetch song");
-    }
-
-    return response.json();
-  } catch (error) {
-    console.error("Error fetching song:", error);
-    throw error;
-  }
-}
-
-/**
- * Fetch N random songs in one call (used by modes that need >1 song per round,
- * e.g. Higher or Lower). count=1 returns a single-element array, so the game
- * orchestrator can use this uniformly for every mode.
+ * Fetch N random songs in one call. count=1 returns a single-element array, so
+ * the game orchestrator can use this uniformly for every mode.
+ *
+ * fetch_preview is always false: playback is Spotify Web SDK (by track ID), so
+ * the backend never needs to hunt for 30-second preview URLs.
  */
 export async function fetchRandomSongs(
   count: number,
   difficulty: "easy" | "medium" | "hard" = "medium",
   era: EraKey = "all",
-  fetchPreview: boolean = true,
 ): Promise<Song[]> {
   const response = await fetch(
-    `${API_BASE_URL}/songs/batch?count=${count}&difficulty=${difficulty}&fetch_preview=${fetchPreview}&era=${era}`,
+    `${API_BASE_URL}/songs/batch?count=${count}&difficulty=${difficulty}&fetch_preview=false&era=${era}`,
     { method: "GET", headers: { "Content-Type": "application/json" } },
   );
 

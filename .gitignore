@@ -22,3 +22,8 @@ data/processed/*
 reports/
 .ipynb_checkpoints/
 node_modules
+
+# Build output (Vite / Nitro / Wrangler)
+.output/
+.wrangler/
+.vite/

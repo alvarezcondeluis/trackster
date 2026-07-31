@@ -59,7 +59,7 @@ export function loadSpotifySDK(): Promise<void> {
  */
 export async function initializePlayer(
   accessToken: string,
-  playerName: string = "Trackster"
+  playerName: string = "Echo"
 ): Promise<void> {
   if (!accessToken) {
     throw new Error("Access token required to initialize player");
@@ -74,32 +74,35 @@ export async function initializePlayer(
   console.log("🎵 Initializing Spotify player...");
 
   return new Promise((resolve, reject) => {
-    player = new (window as any).Spotify.Player({
+    // Local ref (typed any from the SDK constructor) so the listener setup below
+    // isn't tripped up by the module-level `player` being `Player | null`.
+    const p = new (window as any).Spotify.Player({
       name: playerName,
       getOAuthToken: (callback: (token: string) => void) => {
         callback(accessToken);
       },
       volume: 0.5,
     });
+    player = p;
 
     // Error listener
-    player.addListener("initialization_error", ({ message }: any) => {
+    p.addListener("initialization_error", ({ message }: any) => {
       console.error("❌ Initialization error:", message);
       reject(new Error(message));
     });
 
-    player.addListener("authentication_error", ({ message }: any) => {
+    p.addListener("authentication_error", ({ message }: any) => {
       console.error("❌ Authentication error:", message);
       reject(new Error(message));
     });
 
-    player.addListener("account_error", ({ message }: any) => {
+    p.addListener("account_error", ({ message }: any) => {
       console.error("❌ Account error:", message);
       reject(new Error(message));
     });
 
     // Ready listener - fires when device is ready
-    player.addListener("ready", ({ device_id }: any) => {
+    p.addListener("ready", ({ device_id }: any) => {
       console.log("✅ Player ready. Device ID:", device_id);
       deviceId = device_id;
       resolve();
@@ -107,7 +110,7 @@ export async function initializePlayer(
 
     // Connection status listener - only log if state ACTUALLY changed
     let lastLoggedState: any = null;
-    player.addListener("player_state_changed", (state: any) => {
+    p.addListener("player_state_changed", (state: any) => {
       if (!state) return;
 
       // Only log if something meaningful changed
@@ -132,7 +135,7 @@ export async function initializePlayer(
     });
 
     // Connect to Spotify
-    player.connect();
+    p.connect();
   });
 }
 

@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from trackster.api.main import app
+from echo.api.main import app
 
 
 @pytest.fixture
@@ -15,7 +15,7 @@ def mock_spotify():
         # Return a fake preview URL for any track ID
         return f"https://p.scdn.co/mp3-preview/fake-{track_id}"
 
-    with patch("trackster.services.spotify.get_track_preview_url", side_effect=mock_preview):
+    with patch("echo.services.spotify.get_track_preview_url", side_effect=mock_preview):
         yield
 
 

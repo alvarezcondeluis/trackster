@@ -2,7 +2,7 @@
 """Test Spotify API connection and preview URL fetching."""
 
 import sys
-from src.trackster.services.spotify import (
+from src.echo.services.spotify import (
     get_spotify_access_token,
     get_track_preview_url,
 )
