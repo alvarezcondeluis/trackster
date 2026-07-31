@@ -1,1 +1,1 @@
-"""Test suite for Trackster API."""
+"""Test suite for Echo API."""

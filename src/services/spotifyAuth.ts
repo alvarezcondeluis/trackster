@@ -16,26 +16,25 @@ function getRedirectUri(): string {
   return window.location.origin.replace('localhost', '127.0.0.1') + '/callback';
 }
 
+// Least privilege: only what we actually use. Web Playback SDK needs
+// "streaming"; the play/pause Web API calls need modify/read playback state.
+// (Dropped user-read-private / user-read-email — we never read the profile.)
 const SCOPES = [
-  "streaming",                   // Required for Web Playback SDK
-  "user-read-private",
-  "user-read-email",
+  "streaming",
   "user-read-playback-state",
   "user-modify-playback-state",
 ];
 
 /**
- * Generate a code verifier for PKCE
- * Random string 43-128 characters long
+ * Generate a PKCE code verifier — a high-entropy random string (43–128 chars).
+ * Uses the Web Crypto CSPRNG (crypto.getRandomValues), NOT Math.random, because
+ * the verifier is a security token and must be unpredictable.
  */
-function generateCodeVerifier(length: number = 128): string {
+function generateCodeVerifier(length: number = 64): string {
   const possible =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  let text = "";
-  for (let i = 0; i < length; i++) {
-    text += possible.charAt(Math.floor(Math.random() * possible.length));
-  }
-  return text;
+  const bytes = crypto.getRandomValues(new Uint8Array(length));
+  return Array.from(bytes, (b) => possible[b % possible.length]).join("");
 }
 
 /**

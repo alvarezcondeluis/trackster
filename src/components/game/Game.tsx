@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { GameState, Player, Song } from "@/types/game";
 import { fetchRandomSongs, checkBackendHealth } from "@/services/api";
 import { startSpotifyAuth, getStoredToken, clearToken } from "@/services/spotifyAuth";
-import { usePlaybackMode } from "@/hooks/usePlaybackMode";
 import { useEra } from "@/hooks/useEra";
 import { useGameMode } from "@/hooks/useGameMode";
 import { setGameMode } from "@/config/gameMode";
@@ -22,7 +21,7 @@ import { AlertCircle, ArrowLeft } from "lucide-react";
 
 // Survives the full-page Spotify OAuth redirect so we can return the user to the
 // Lobby (with their crew) instead of dropping them back on the mode-select screen.
-const RESUME_KEY = "trackster:resume-setup";
+const RESUME_KEY = "echo:resume-setup";
 
 export function Game() {
   // Game state
@@ -39,10 +38,6 @@ export function Game() {
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
-  // Reactive playback mode — updates live when the user toggles it in the Lobby
-  const playbackMode = usePlaybackMode();
-  const isSdkMode = playbackMode === "sdk";
-
   // Reactive era filter — which years of music are eligible
   const era = useEra();
 
@@ -51,9 +46,10 @@ export function Game() {
   const mode = GAME_MODES[modeId];
 
   // Audio-free modes (e.g. Higher or Lower) only compare metadata, so they never
-  // touch Spotify. Everything Spotify-related below is gated on this.
+  // touch Spotify. Playback is always the Web SDK, so audio modes require a
+  // connected Spotify session.
   const needsAudio = mode.needsAudio;
-  const requiresSpotify = needsAudio && isSdkMode;
+  const requiresSpotify = needsAudio;
 
   // Returning from the Spotify OAuth redirect: restore the Lobby + crew.
   useEffect(() => {
@@ -102,20 +98,11 @@ export function Game() {
     checkBackend();
   }, []);
 
-  // Effect B: Spotify player setup — re-runs whenever the playback mode changes,
-  // so switching modes applies live without a page reload.
+  // Effect B: Spotify Web Playback SDK setup (the only playback path).
   useEffect(() => {
     const initPlayback = async () => {
       // Audio-free modes never play anything — skip all Spotify setup.
       if (!needsAudio) return;
-
-      console.log(`🎵 Playback Pipeline: ${isSdkMode ? "🎵 SDK (Full Songs)" : "⚡ Preview (30s clips)"}`);
-
-      // Preview mode needs no Spotify connection
-      if (!isSdkMode) {
-        setSpotifyConnected(true);
-        return;
-      }
 
       // Already have a live player from a previous init — reuse it
       if (isPlayerReady()) {
@@ -123,7 +110,7 @@ export function Game() {
         return;
       }
 
-      // SDK mode: load SDK, then init the player if we have a stored token
+      // Load the SDK, then init the player if we already have a stored token.
       try {
         console.log("📥 Loading Spotify SDK...");
         await loadSpotifySDK();
@@ -164,7 +151,7 @@ export function Game() {
     };
 
     initPlayback();
-  }, [playbackMode, isSdkMode, needsAudio]);
+  }, [needsAudio]);
 
   // Fetch the round's song(s) when entering a round (count depends on the mode)
   useEffect(() => {
@@ -185,11 +172,9 @@ export function Game() {
 
     const t0 = performance.now();
     try {
-      // Only preview-playback modes need a preview URL. SDK mode plays by track
-      // ID, and audio-free modes don't play at all — both skip the backend's
-      // (Spotify-backed) preview hunt.
-      const fetchPreview = needsAudio && !isSdkMode;
-      const songs = await fetchRandomSongs(mode.songsPerRound, "medium", era, fetchPreview);
+      // SDK plays by track ID and audio-free modes don't play at all — so we
+      // never need the backend's (Spotify-backed) preview hunt.
+      const songs = await fetchRandomSongs(mode.songsPerRound, "medium", era);
       const ms = Math.round(performance.now() - t0);
       console.log(`⏱️ ${songs.length} song(s) ready in ${ms}ms (mode: ${modeId}, era: ${era})`);
       songs.forEach((s) =>
@@ -304,7 +289,7 @@ export function Game() {
             </svg>
           </div>
           <div>
-            <h2 className="text-lg font-bold">Initializing Trackster...</h2>
+            <h2 className="text-lg font-bold">Initializing Echo...</h2>
             <p className="text-sm text-muted-foreground mt-1">Connecting to backend</p>
           </div>
         </div>
@@ -322,7 +307,7 @@ export function Game() {
             <div className="font-semibold text-destructive">Backend Error</div>
             <div className="text-sm text-destructive/80">{error}</div>
             <div className="text-xs text-destructive/60 mt-2">
-              Make sure FastAPI is running: <code className="bg-black/20 px-2 py-1 rounded">uv run python -m trackster.api.main</code>
+              Make sure FastAPI is running: <code className="bg-black/20 px-2 py-1 rounded">uv run python -m echo.api.main</code>
             </div>
           </div>
         </div>
@@ -355,7 +340,7 @@ export function Game() {
             </svg>
           </div>
           <h1 className="text-3xl font-black tracking-tight text-gradient-neon">
-            Trackster
+            Echo
           </h1>
         </div>
         <span className="rounded-full border border-border bg-card/60 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

@@ -1,7 +1,7 @@
 import { Eye, HelpCircle, Music2, Pause, Play } from "lucide-react";
 import { Player, Song } from "@/types/game";
 import { useTimer } from "@/hooks/useTimer";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { playTrack, pauseTrack, stopTrack } from "@/services/unifiedPlayer";
 
 interface PlayingProps {
@@ -9,6 +9,16 @@ interface PlayingProps {
   player: Player;
   song: Song | null;
   onReveal: () => void;
+  /** Label for the reveal button (default "Reveal Answer"). */
+  revealLabel?: string;
+  /**
+   * Keep the album art hidden even after the timer ends. Classic un-blurs the
+   * art on time-up; "Name It" keeps it hidden so the answer isn't leaked while
+   * the player is still typing. Defaults to false (classic behavior).
+   */
+  keepHiddenOnTimeUp?: boolean;
+  /** Extra controls rendered under the player (e.g. the "Name It" guess input). */
+  children?: ReactNode;
 }
 
 export function Playing({
@@ -16,11 +26,13 @@ export function Playing({
   player,
   song,
   onReveal,
+  revealLabel = "Reveal Answer",
+  keepHiddenOnTimeUp = false,
+  children,
 }: PlayingProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [timeIsUp, setTimeIsUp] = useState(false);
-  const [playbackMethod, setPlaybackMethod] = useState<"preview" | "sdk" | null>(null);
 
   const timer = useTimer(isPlaying, 30, () => {
     setIsPlaying(false);
@@ -43,21 +55,11 @@ export function Playing({
         return;
       }
 
-      // For preview mode: needs preview URL OR will fallback to SDK
-      // For SDK mode: needs Spotify ID (we checked above)
-      // So we're good to proceed!
-
       const spotifyUri = `spotify:track:${song.id}`;
 
-      // Use unified player (routes to correct pipeline)
-      playTrack({
-        spotifyUri,
-        previewUrl: song.preview_url,
-        songName: song.name,
-      })
-        .then((method) => {
-          // Track which method was actually used
-          setPlaybackMethod(method);
+      // Play the full song via the Spotify Web SDK.
+      playTrack({ spotifyUri, songName: song.name })
+        .then(() => {
           setIsPlaying(true);
           setHasPlayed(true);
           setTimeIsUp(false);
@@ -84,6 +86,10 @@ export function Playing({
     }
   };
 
+  // Show the real (un-blurred) art only when the timer ends AND the mode allows
+  // it. "Name It" keeps it hidden the whole time so the answer isn't leaked.
+  const showAnswerArt = timeIsUp && !keepHiddenOnTimeUp;
+
   return (
     <section className="animate-slide-up flex flex-col gap-3">
       <div className="flex items-center justify-between">
@@ -106,22 +112,19 @@ export function Playing({
               src={song.album_art_url}
               alt={song.album_name || "Album art"}
               className={`w-full aspect-square object-cover rounded-2xl shadow-lg transition-all ${
-                timeIsUp ? "blur-none" : "blur-xl opacity-40"
+                showAnswerArt ? "blur-none" : "blur-3xl opacity-30 scale-110"
               }`}
               onError={(e) => {
                 // Fallback if image fails to load
                 e.currentTarget.style.display = "none";
               }}
             />
-            {/* Playback method badge */}
+            {/* Playback badge */}
             <div className="absolute top-3 right-3 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white">
-              {playbackMethod === "preview" && "⚡ Preview"}
-              {playbackMethod === "sdk" && !song.preview_url && "🎵 SDK (Fallback)"}
-              {playbackMethod === "sdk" && song.preview_url && "🎵 SDK"}
-              {!playbackMethod && "🎵 Ready..."}
+              🎵 SDK
             </div>
-            {/* Mystery overlay while playing */}
-            {!timeIsUp && (
+            {/* Mystery overlay while the answer is still hidden */}
+            {!showAnswerArt && (
               <div className="absolute inset-0 rounded-2xl bg-black/30 backdrop-blur-sm flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-6xl mb-2">🎵</div>
@@ -146,9 +149,7 @@ export function Playing({
             ??? ??? ???
           </div>
           <div className="text-[11px] text-muted-foreground/50">
-            {playbackMethod === "preview" && "⚡ Instant playback (preview)"}
-            {playbackMethod === "sdk" && "🎵 Full song via SDK"}
-            {!playbackMethod && "Ready to play"}
+            {hasPlayed ? "🎵 Full song via SDK" : "Ready to play"}
           </div>
         </div>
       </div>
@@ -203,6 +204,9 @@ export function Playing({
         </div>
       </div>
 
+      {/* Mode-specific controls (e.g. the "Name It" guess input) */}
+      {children}
+
       {/* Button: Reveal Answer (always available after song plays) */}
       {hasPlayed && (
         <>
@@ -211,7 +215,7 @@ export function Playing({
               onClick={onReveal}
               className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-neon py-5 text-lg font-black uppercase tracking-wide text-neon-foreground glow-primary transition active:scale-[0.98]"
             >
-              <Eye className="h-5 w-5" /> Reveal Answer
+              <Eye className="h-5 w-5" /> {revealLabel}
             </button>
           )}
 

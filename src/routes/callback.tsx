@@ -15,10 +15,7 @@ import {
   storeToken,
 } from "@/services/spotifyAuth";
 import { initializePlayer, loadSpotifySDK, startDeviceMonitor } from "@/services/spotifyWebSdk";
-import { getPlaybackConfig } from "@/config/playback";
 import { AlertCircle, CheckCircle, Loader } from "lucide-react";
-
-const { isSdkMode } = getPlaybackConfig();
 
 export const Route = createFileRoute("/callback")({
   component: OAuthCallback,
@@ -60,21 +57,19 @@ function OAuthCallback() {
         storeToken(token);
         console.log("✅ Token stored");
 
-        // If SDK mode, initialize player now
-        if (isSdkMode) {
-          try {
-            console.log("🎵 Initializing Spotify player...");
-            await loadSpotifySDK();
-            await initializePlayer(token);
-            console.log("✅ Spotify player initialized");
+        // Initialize the Web Playback SDK player now.
+        try {
+          console.log("🎵 Initializing Spotify player...");
+          await loadSpotifySDK();
+          await initializePlayer(token);
+          console.log("✅ Spotify player initialized");
 
-            // Start monitoring device health
-            startDeviceMonitor();
-            console.log("👁️ Device monitor started");
-          } catch (playerErr) {
-            console.warn("⚠️ Player initialization warning:", playerErr);
-            // Don't fail the whole flow, player might be ready later
-          }
+          // Start monitoring device health
+          startDeviceMonitor();
+          console.log("👁️ Device monitor started");
+        } catch (playerErr) {
+          console.warn("⚠️ Player initialization warning:", playerErr);
+          // Don't fail the whole flow, player might be ready later
         }
 
         setStatus("success");

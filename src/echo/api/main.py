@@ -9,7 +9,7 @@ from .routes import router
 
 # Create the FastAPI app
 app = FastAPI(
-    title="Trackster API",
+    title="Echo API",
     description="Backend for the Hitster-style Spotify guessing game",
     version="0.1.0",
 )
@@ -33,7 +33,7 @@ app.include_router(router)
 def root() -> dict:
     """API root. Redirects you to /docs for interactive docs."""
     return {
-        "message": "Trackster API",
+        "message": "Echo API",
         "docs": "http://localhost:8000/docs",
     }
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     import uvicorn
 
     uvicorn.run(
-        "trackster.api.main:app",
+        "echo.api.main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,  # Auto-reload on file changes

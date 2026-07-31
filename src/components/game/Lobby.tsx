@@ -1,9 +1,7 @@
 import { Sparkles, Trash2, UserPlus, Music, CheckCircle } from "lucide-react";
 import { Player } from "@/types/game";
-import { usePlaybackMode } from "@/hooks/usePlaybackMode";
 import { useGameMode } from "@/hooks/useGameMode";
 import { GAME_MODES } from "@/game/modes/registry";
-import { PlaybackSettings } from "@/components/settings/PlaybackSettings";
 import { EraSettings } from "@/components/settings/EraSettings";
 
 interface LobbyProps {
@@ -29,12 +27,11 @@ export function Lobby({
   onConnectSpotify,
   isAuthenticating,
 }: LobbyProps) {
-  const isUriMode = usePlaybackMode() === "preview";
   const mode = GAME_MODES[useGameMode()];
   const { minPlayers, needsAudio } = mode;
   const needed = Math.max(0, minPlayers - players.length);
-  // Spotify is only a prerequisite for audio modes playing full songs (SDK).
-  const spotifyBlocking = needsAudio && !isUriMode && !spotifyConnected;
+  // Playback is Web-SDK only, so audio modes need a connected Spotify session.
+  const spotifyBlocking = needsAudio && !spotifyConnected;
   const canStart = players.length >= minPlayers && !spotifyBlocking;
 
   return (
@@ -43,17 +40,11 @@ export function Lobby({
           relative z-20 keeps its dropdowns above the players list below
           (each card-surface has backdrop-filter → its own stacking context). */}
       <div className="card-surface relative z-20 space-y-3 rounded-2xl p-4">
-        {/* Spotify status + playback settings only matter for audio modes.
+        {/* Spotify connection only matters for audio modes (SDK playback).
             Audio-free modes (e.g. Higher or Lower) just compare metadata. */}
         {needsAudio && (
           <>
-            {/* Slim Spotify status (one line) */}
-            {isUriMode ? (
-              <div className="flex items-center gap-2 text-sm font-semibold text-success">
-                <CheckCircle className="h-4 w-4" />
-                <span>Spotify URI Mode · opens in your app</span>
-              </div>
-            ) : spotifyConnected ? (
+            {spotifyConnected ? (
               <div className="flex items-center gap-2 text-sm font-semibold text-success">
                 <CheckCircle className="h-4 w-4" />
                 <span>Spotify Connected</span>
@@ -78,11 +69,8 @@ export function Lobby({
           </>
         )}
 
-        {/* Settings — Playback only when audio is used; Era always applies. */}
-        <div className={`grid gap-4 ${needsAudio ? "grid-cols-2" : "grid-cols-1"}`}>
-          {needsAudio && <PlaybackSettings />}
-          <EraSettings />
-        </div>
+        {/* Era filter always applies. */}
+        <EraSettings />
 
         <div className="h-px bg-border" />
 

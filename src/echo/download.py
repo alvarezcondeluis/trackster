@@ -8,7 +8,7 @@ Requires Kaggle API credentials. Provide them in one of two ways:
 Get the token from https://www.kaggle.com/settings -> API -> "Create New Token".
 
 Usage:
-    uv run python -m trackster.download
+    uv run python -m echo.download
 """
 
 import sys
