@@ -1,5 +1,6 @@
 import { Check, X } from "lucide-react";
 import { Player, Song } from "@/types/game";
+import { useSongArt } from "@/hooks/useSongArt";
 
 interface RevealedProps {
   player: Player;
@@ -8,6 +9,7 @@ interface RevealedProps {
 }
 
 export function Revealed({ player, song, onScore }: RevealedProps) {
+  const artUrl = useSongArt(song); // called before the early return (rules of hooks)
   if (!song) return null;
 
   return (
@@ -24,9 +26,9 @@ export function Revealed({ player, song, onScore }: RevealedProps) {
 
       <div className="card-surface animate-pop-in rounded-3xl p-4">
         {/* Album Art or Fallback — capped small so the screen fits */}
-        {song?.album_art_url ? (
+        {artUrl ? (
           <img
-            src={song.album_art_url}
+            src={artUrl}
             alt={song.album_name || "Album art"}
             className="mx-auto block aspect-square w-full max-w-[200px] rounded-2xl object-cover shadow-lg"
             onError={(e) => {

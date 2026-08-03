@@ -1,0 +1,9 @@
+# Exclude vendored / generated / non-source files from CodeFactor analysis.
+exclude:
+  - "src/components/ui/**" # shadcn/ui — vendored components, not hand-maintained
+  - "src/routeTree.gen.ts" # TanStack Router generated route tree
+  - "**/*.gen.ts" # any generated TypeScript
+  - "notebooks/**" # exploratory notebooks
+  - "data/**"
+  - ".output/**"
+  - "dist/**"

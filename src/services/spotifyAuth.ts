@@ -9,11 +9,11 @@ const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID;
 
 // Get redirect URI only when needed (in browser)
 function getRedirectUri(): string {
-  if (typeof window === 'undefined') {
-    return 'http://127.0.0.1:5173/callback';
+  if (typeof window === "undefined") {
+    return "http://127.0.0.1:5173/callback";
   }
   // Replace localhost with 127.0.0.1 for Spotify compatibility
-  return window.location.origin.replace('localhost', '127.0.0.1') + '/callback';
+  return window.location.origin.replace("localhost", "127.0.0.1") + "/callback";
 }
 
 // Least privilege: only what we actually use. Web Playback SDK needs
@@ -58,9 +58,7 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
  */
 export async function startSpotifyAuth(): Promise<void> {
   if (!CLIENT_ID) {
-    throw new Error(
-      "SPOTIFY_CLIENT_ID not set in .env - see .env.example"
-    );
+    throw new Error("SPOTIFY_CLIENT_ID not set in .env - see .env.example");
   }
 
   // Generate PKCE verifier and challenge

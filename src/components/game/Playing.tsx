@@ -1,9 +1,11 @@
 import { Eye, HelpCircle, Music2, Pause, Play } from "lucide-react";
 import { Player, Song } from "@/types/game";
 import { useTimer } from "@/hooks/useTimer";
-import { useState, type ReactNode } from "react";
+import { useSongArt } from "@/hooks/useSongArt";
+import { useEffect, useState, type ReactNode } from "react";
 import { playTrack, pauseTrack, stopTrack } from "@/services/unifiedPlayer";
-
+import { pickStartMs } from "@/game/startPosition";
+import { Button } from "@/components/ui/button";
 interface PlayingProps {
   round: number;
   player: Player;
@@ -33,6 +35,11 @@ export function Playing({
   const [isPlaying, setIsPlaying] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
   const [timeIsUp, setTimeIsUp] = useState(false);
+  const artUrl = useSongArt(song); // lazily fetches art if the song arrived without it
+  const [artFailed, setArtFailed] = useState(false);
+
+  // A new art URL is a fresh attempt — clear any previous load failure.
+  useEffect(() => setArtFailed(false), [artUrl]);
 
   const timer = useTimer(isPlaying, 30, () => {
     setIsPlaying(false);
@@ -56,9 +63,10 @@ export function Playing({
       }
 
       const spotifyUri = `spotify:track:${song.id}`;
+      const startMs = pickStartMs(song.duration_ms);
 
       // Play the full song via the Spotify Web SDK.
-      playTrack({ spotifyUri, songName: song.name })
+      playTrack({ spotifyUri, songName: song.name, positionMs: startMs })
         .then(() => {
           setIsPlaying(true);
           setHasPlayed(true);
@@ -67,7 +75,9 @@ export function Playing({
         })
         .catch((err) => {
           console.error("❌ Failed to play song:", err);
-          alert(`🎵 Playback error: ${err instanceof Error ? err.message : "Unknown error"}`);
+          alert(
+            `🎵 Playback error: ${err instanceof Error ? err.message : "Unknown error"}`,
+          );
         });
     } else {
       // Pause with optimistic update (instant UI feedback)
@@ -76,13 +86,12 @@ export function Playing({
       timer.pause();
 
       // Then sync with Spotify in background
-      pauseTrack()
-        .catch((err) => {
-          console.error("❌ Failed to pause:", err);
-          // If pause fails, resume (user sees pause failed)
-          setIsPlaying(true);
-          timer.resume();
-        });
+      pauseTrack().catch((err) => {
+        console.error("❌ Failed to pause:", err);
+        // If pause fails, resume (user sees pause failed)
+        setIsPlaying(true);
+        timer.resume();
+      });
     }
   };
 
@@ -104,20 +113,18 @@ export function Playing({
 
       {/* Album Art or Mystery Card - BLUR while content is hidden */}
       <div className="card-surface relative overflow-hidden rounded-3xl p-4 animate-pop-in">
-        {song?.album_art_url ? (
+        {artUrl && !artFailed ? (
           // Show album art (blurred during mystery phase) — capped small since
           // it's hidden while guessing; the full-size art shows on Reveal.
           <div className="relative mx-auto w-full max-w-[200px]">
             <img
-              src={song.album_art_url}
-              alt={song.album_name || "Album art"}
+              src={artUrl}
+              alt={song?.album_name || "Album art"}
               className={`w-full aspect-square object-cover rounded-2xl shadow-lg transition-all ${
                 showAnswerArt ? "blur-none" : "blur-3xl opacity-30 scale-110"
               }`}
-              onError={(e) => {
-                // Fallback if image fails to load
-                e.currentTarget.style.display = "none";
-              }}
+              // On load failure, fall through to the 🎵 mystery card below.
+              onError={() => setArtFailed(true)}
             />
             {/* Playback badge */}
             <div className="absolute top-3 right-3 bg-black/60 px-3 py-1 rounded-full text-xs font-bold text-white">
@@ -128,7 +135,9 @@ export function Playing({
               <div className="absolute inset-0 rounded-2xl bg-black/30 backdrop-blur-sm flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-6xl mb-2">🎵</div>
-                  <div className="text-sm font-semibold text-white/80">Playing...</div>
+                  <div className="text-sm font-semibold text-white/80">
+                    Playing...
+                  </div>
                 </div>
               </div>
             )}
@@ -154,20 +163,6 @@ export function Playing({
         </div>
       </div>
 
-      {/* Timer display */}
-      {hasPlayed && (
-        <div className="card-surface rounded-2xl p-4 text-center">
-          <div className="text-5xl font-black" style={{
-            color: timer.timeLeft <= 5 ? '#ef4444' : '#10b981'
-          }}>
-            {timer.timeLeft}s
-          </div>
-          <div className="text-sm font-semibold text-muted-foreground mt-2">
-            {timer.isRunning ? 'Listening...' : timeIsUp ? 'Time\'s up!' : 'Paused'}
-          </div>
-        </div>
-      )}
-
       {/* Playback controls */}
       <div className="card-surface flex items-center gap-4 rounded-2xl p-4">
         <button
@@ -189,7 +184,11 @@ export function Playing({
         <div className="flex-1">
           <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-muted-foreground">
             <Music2 className="h-3.5 w-3.5" />{" "}
-            {isPlaying ? "Now playing..." : hasPlayed ? "Paused" : "Ready to play"}
+            {isPlaying
+              ? "Now playing..."
+              : hasPlayed
+                ? "Paused"
+                : "Ready to play"}
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-secondary">
             <div
@@ -202,6 +201,25 @@ export function Playing({
             />
           </div>
         </div>
+
+        {/* Compact timer, tucked on the right of the controls */}
+        {hasPlayed && (
+          <div className="shrink-0 text-right leading-none">
+            <div
+              className="text-2xl font-black tabular-nums"
+              style={{ color: timer.timeLeft <= 5 ? "#ef4444" : "#10b981" }}
+            >
+              {timer.timeLeft}s
+            </div>
+            <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {timer.isRunning
+                ? "Listening"
+                : timeIsUp
+                  ? "Time's up"
+                  : "Paused"}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mode-specific controls (e.g. the "Name It" guess input) */}
@@ -211,12 +229,14 @@ export function Playing({
       {hasPlayed && (
         <>
           {!isPlaying && (
-            <button
+            <Button
+              variant="action"
+              size="action"
               onClick={onReveal}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-neon py-5 text-lg font-black uppercase tracking-wide text-neon-foreground glow-primary transition active:scale-[0.98]"
+              className="mt-2"
             >
-              <Eye className="h-5 w-5" /> {revealLabel}
-            </button>
+              <Eye /> {revealLabel}
+            </Button>
           )}
 
           {/* Status: Listening while playing */}

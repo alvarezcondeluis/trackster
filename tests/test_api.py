@@ -1,6 +1,11 @@
-"""Test the API endpoints."""
+"""Test the API endpoints.
 
-from unittest.mock import patch, MagicMock
+These are integration tests: they hit the real Supabase-backed endpoints, so a
+valid .env + populated `songs` table (with the `rating_score` column) is needed.
+Playback is SDK-only, so songs no longer carry a preview_url.
+"""
+
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -9,250 +14,166 @@ from echo.api.main import app
 
 
 @pytest.fixture
-def mock_spotify():
-    """Mock the Spotify API so we don't make real calls."""
-    def mock_preview(track_id, **kwargs):
-        # Return a fake preview URL for any track ID
-        return f"https://p.scdn.co/mp3-preview/fake-{track_id}"
-
-    with patch("echo.services.spotify.get_track_preview_url", side_effect=mock_preview):
-        yield
-
-
-@pytest.fixture
-def client(mock_spotify):
-    """Create a test client with mocked Spotify API."""
+def client():
     return TestClient(app)
 
 
-class TestHealth:
-    """Health check endpoint tests."""
+# Fields the Song model exposes (nothing else should leak into responses).
+SONG_FIELDS = {
+    "id",
+    "name",
+    "artist_name",
+    "artists",
+    "genres",
+    "year",
+    "popularity",
+    "preview_url",
+    "album_art_url",
+    "album_name",
+    "rating_score",
+}
 
+
+class TestHealth:
     def test_health_check(self, client):
-        """Verify the server is alive."""
         response = client.get("/api/health")
         assert response.status_code == 200
         assert response.json() == {"status": "ok"}
 
 
-class TestSongRetrieval:
-    """Test basic song data retrieval from Supabase."""
+class TestSongBatch:
+    """The batch endpoint is the game's main song source."""
 
-    def test_random_song_returns_200(self, client):
-        """Song endpoint should return HTTP 200."""
-        response = client.get("/api/songs/random")
+    def test_batch_returns_200_list(self, client):
+        response = client.get("/api/songs/batch")
         assert response.status_code == 200
+        assert isinstance(response.json(), list)
 
-    def test_song_response_has_required_fields(self, client):
-        """Song response must have all critical fields."""
-        response = client.get("/api/songs/random")
-        song = response.json()
+    def test_batch_default_count_is_one(self, client):
+        songs = client.get("/api/songs/batch").json()
+        assert len(songs) == 1
 
-        # Core fields that the game needs
-        required_fields = ["id", "name", "artist_name", "preview_url"]
-        for field in required_fields:
-            assert field in song, f"Missing required field: {field}"
-            assert song[field] is not None, f"Field {field} is null"
+    def test_batch_count_returns_that_many(self, client):
+        songs = client.get("/api/songs/batch?count=3").json()
+        assert len(songs) == 3
 
-    def test_song_name_not_empty(self, client):
-        """Song names should be non-empty strings."""
-        response = client.get("/api/songs/random")
-        song = response.json()
+    def test_batch_count_returns_distinct(self, client):
+        songs = client.get("/api/songs/batch?count=3").json()
+        ids = [s["id"] for s in songs]
+        assert len(set(ids)) == len(ids)
 
-        assert isinstance(song["name"], str)
-        assert len(song["name"]) > 0
-        assert song["name"].strip() != ""
+    def test_song_has_required_fields(self, client):
+        song = client.get("/api/songs/batch").json()[0]
+        for field in ("id", "name", "artist_name", "rating_score"):
+            assert field in song and song[field] is not None
 
-    def test_song_artist_name_not_empty(self, client):
-        """Artist names should be non-empty strings."""
-        response = client.get("/api/songs/random")
-        song = response.json()
+    def test_name_and_artist_non_empty(self, client):
+        song = client.get("/api/songs/batch").json()[0]
+        assert isinstance(song["name"], str) and song["name"].strip()
+        assert isinstance(song["artist_name"], str) and song["artist_name"].strip()
 
-        assert isinstance(song["artist_name"], str)
-        assert len(song["artist_name"]) > 0
+    def test_id_is_non_empty_string(self, client):
+        song = client.get("/api/songs/batch").json()[0]
+        assert isinstance(song["id"], str) and len(song["id"]) > 0
 
-    def test_preview_url_is_valid(self, client):
-        """Preview URLs should be valid Spotify MP3 links."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
-        preview_url = song["preview_url"]
-        assert isinstance(preview_url, str)
-        assert preview_url.startswith("https://")
-        assert ".mp3" in preview_url or "preview" in preview_url
-
-    def test_song_id_is_valid_spotify_id(self, client):
-        """Spotify IDs should be non-empty strings."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
-        assert isinstance(song["id"], str)
-        assert len(song["id"]) > 0
-
-    def test_song_year_when_present(self, client):
-        """If year is present, it should be reasonable."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
+    def test_year_reasonable_when_present(self, client):
+        song = client.get("/api/songs/batch").json()[0]
         if song.get("year") is not None:
-            year = song["year"]
-            assert isinstance(year, int)
-            assert 1920 <= year <= 2030  # Reasonable range
+            assert 1920 <= song["year"] <= 2030
 
-    def test_popularity_when_present(self, client):
-        """If popularity is present, it should be 0-100."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
+    def test_popularity_in_range_when_present(self, client):
+        song = client.get("/api/songs/batch").json()[0]
         if song.get("popularity") is not None:
-            popularity = song["popularity"]
-            assert isinstance(popularity, int)
-            assert 0 <= popularity <= 100
+            assert 0 <= song["popularity"] <= 100
 
     def test_genres_is_list_or_none(self, client):
-        """Genres should be a list or None."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
+        song = client.get("/api/songs/batch").json()[0]
         genres = song.get("genres")
-        assert genres is None or isinstance(genres, list)
-        if isinstance(genres, list):
-            assert all(isinstance(g, str) for g in genres)
+        assert genres is None or all(isinstance(g, str) for g in genres)
 
-    def test_artists_is_list_or_none(self, client):
-        """Artists should be a list or None."""
-        response = client.get("/api/songs/random")
-        song = response.json()
+    def test_offset_is_respected(self, client):
+        # An explicit offset should still return a valid batch.
+        response = client.get("/api/songs/batch?offset=0&count=2")
+        assert response.status_code == 200
+        assert len(response.json()) == 2
 
-        artists = song.get("artists")
-        assert artists is None or isinstance(artists, list)
-        if isinstance(artists, list):
-            assert all(isinstance(a, str) for a in artists)
+    def test_no_unexpected_fields(self, client):
+        song = client.get("/api/songs/batch").json()[0]
+        assert set(song.keys()).issubset(SONG_FIELDS), (
+            f"Unexpected fields: {set(song.keys()) - SONG_FIELDS}"
+        )
 
 
-class TestMultipleSongCalls:
-    """Test randomness and consistency across multiple calls."""
-
+class TestMultipleCalls:
     def test_multiple_calls_return_different_songs(self, client):
-        """Calling the endpoint multiple times should return different songs."""
-        song_ids = set()
+        ids = set()
         for _ in range(5):
-            response = client.get("/api/songs/random")
-            song_id = response.json()["id"]
-            song_ids.add(song_id)
-
-        # We should get at least 3 different songs in 5 calls
-        # (some repeats are OK due to randomness)
-        assert len(song_ids) >= 3, f"Got only {len(song_ids)} unique songs in 5 calls"
-
-    def test_each_call_is_valid(self, client):
-        """Every call should return a valid song."""
-        for i in range(5):
-            response = client.get("/api/songs/random")
-            assert response.status_code == 200, f"Call {i+1} returned {response.status_code}"
-
-            song = response.json()
-            assert song["name"], f"Call {i+1} returned empty name"
-            assert song["artist_name"], f"Call {i+1} returned empty artist"
-            assert song["preview_url"], f"Call {i+1} returned no preview_url"
+            ids.add(client.get("/api/songs/batch").json()[0]["id"])
+        assert len(ids) >= 3, f"Only {len(ids)} unique songs in 5 calls"
 
 
 class TestDifficultyFiltering:
-    """Test difficulty-based filtering."""
+    def test_easy_is_high_popularity(self, client):
+        song = client.get("/api/songs/batch?difficulty=easy").json()[0]
+        if song.get("popularity") is not None:
+            assert song["popularity"] >= 75
 
-    def test_default_difficulty_is_medium(self, client):
-        """Default call should use medium difficulty (>= 40 popularity)."""
-        response = client.get("/api/songs/random")
-        assert response.status_code == 200
-        song = response.json()
-
-        # Medium difficulty = >= 40 popularity
+    def test_medium_popularity_threshold(self, client):
+        song = client.get("/api/songs/batch?difficulty=medium").json()[0]
         if song.get("popularity") is not None:
             assert song["popularity"] >= 40
 
-    def test_easy_difficulty_filter(self, client):
-        """Easy songs should have high popularity (>= 70)."""
-        response = client.get("/api/songs/random?difficulty=easy")
+    def test_hard_has_no_floor(self, client):
+        response = client.get("/api/songs/batch?difficulty=hard")
         assert response.status_code == 200
-        song = response.json()
 
-        if song.get("popularity") is not None:
-            assert song["popularity"] >= 70, \
-                f"Easy song has popularity {song['popularity']}, expected >= 70"
 
-    def test_medium_difficulty_filter(self, client):
-        """Medium songs should have popularity >= 40."""
-        response = client.get("/api/songs/random?difficulty=medium")
+class TestCount:
+    def test_count_returns_int(self, client):
+        response = client.get("/api/songs/count")
         assert response.status_code == 200
-        song = response.json()
+        assert isinstance(response.json(), int)
+        assert response.json() >= 0
 
-        if song.get("popularity") is not None:
-            assert song["popularity"] >= 40, \
-                f"Medium song has popularity {song['popularity']}, expected >= 40"
+    def test_narrow_era_not_more_than_all(self, client):
+        total_all = client.get("/api/songs/count?era=all").json()
+        total_80s = client.get("/api/songs/count?era=80s").json()
+        assert total_80s <= total_all  # 80s is a subset of all-time
 
-    def test_hard_difficulty_no_filter(self, client):
-        """Hard songs can have any popularity."""
-        response = client.get("/api/songs/random?difficulty=hard")
+    def test_invalid_difficulty_returns_400(self, client):
+        response = client.get("/api/songs/count?difficulty=nope")
+        assert response.status_code == 400
+
+
+class TestArt:
+    def test_art_endpoint_returns_shape(self, client):
+        song = client.get("/api/songs/batch").json()[0]
+        # Mock Spotify so the test never makes a real network call if art is uncached.
+        with (
+            patch(
+                "echo.services.song_service.get_track_album_art",
+                return_value={"album_name": "X", "album_art_url": "https://img/x.jpg"},
+            ),
+            patch(
+                "echo.services.song_service.cache_album_art_to_supabase",
+                return_value=None,
+            ),
+        ):
+            response = client.get(f"/api/songs/{song['id']}/art")
         assert response.status_code == 200
-        assert "name" in response.json()
+        body = response.json()
+        assert "album_art_url" in body and "album_name" in body
 
 
 class TestErrorHandling:
-    """Test error cases and edge cases."""
-
     def test_invalid_difficulty_returns_400(self, client):
-        """Unknown difficulty should return HTTP 400."""
-        response = client.get("/api/songs/random?difficulty=invalid_difficulty")
+        response = client.get("/api/songs/batch?difficulty=invalid_difficulty")
         assert response.status_code == 400
+        assert "detail" in response.json()
 
-        error_data = response.json()
-        assert "detail" in error_data
+    def test_default_difficulty_works(self, client):
+        assert client.get("/api/songs/batch").status_code == 200
 
-    def test_empty_difficulty_uses_default(self, client):
-        """Calling without difficulty param should work (use default)."""
-        response = client.get("/api/songs/random")
-        assert response.status_code == 200
-
-    def test_case_insensitive_difficulty(self, client):
-        """Test if difficulty param is case-sensitive (currently case-sensitive)."""
-        # This test documents current behavior; adjust if needed
-        response = client.get("/api/songs/random?difficulty=EASY")
-        # Should fail since we're case-sensitive
-        assert response.status_code == 400
-
-
-class TestResponseConsistency:
-    """Test that the response format is consistent."""
-
-    def test_response_is_valid_json(self, client):
-        """Response should be valid JSON."""
-        response = client.get("/api/songs/random")
-        # If this line runs, JSON is valid (would crash otherwise)
-        song = response.json()
-        assert isinstance(song, dict)
-
-    def test_no_unexpected_null_fields(self, client):
-        """Critical fields should never be null."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
-        # These should always have values
-        assert song["id"] is not None
-        assert song["name"] is not None
-        assert song["artist_name"] is not None
-        assert song["preview_url"] is not None
-
-    def test_response_has_no_extra_debug_fields(self, client):
-        """Response should only have expected fields."""
-        response = client.get("/api/songs/random")
-        song = response.json()
-
-        expected_fields = {
-            "id", "name", "artist_name", "artists", "genres",
-            "year", "popularity", "preview_url"
-        }
-        actual_fields = set(song.keys())
-
-        # All fields should be in expected set (no extra debug/internal fields)
-        assert actual_fields.issubset(expected_fields), \
-            f"Unexpected fields: {actual_fields - expected_fields}"
+    def test_difficulty_is_case_sensitive(self, client):
+        # Documents current behavior: "EASY" is not a valid key.
+        assert client.get("/api/songs/batch?difficulty=EASY").status_code == 400

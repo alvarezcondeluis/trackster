@@ -38,11 +38,14 @@
 
   /* Accent glows derive from --primary so a single token drives the whole theme
      (see src/config/theme.ts). color-mix applies the alpha to the accent color. */
-  --shadow-glow-primary: 0 0 40px color-mix(in oklch, var(--primary) 55%, transparent), 0 0 12px color-mix(in oklch, var(--primary) 60%, transparent);
+  --shadow-glow-primary:
+    0 0 40px color-mix(in oklch, var(--primary) 55%, transparent),
+    0 0 12px color-mix(in oklch, var(--primary) 60%, transparent);
   --shadow-glow-success: 0 0 30px oklch(0.78 0.22 145 / 0.55);
   --shadow-glow-destructive: 0 0 30px oklch(0.7 0.24 25 / 0.5);
   --shadow-glow-cyan: 0 0 30px oklch(0.82 0.15 200 / 0.55);
-  --shadow-card: 0 20px 60px -20px oklch(0 0 0 / 0.6), 0 0 0 1px oklch(1 0 0 / 0.05);
+  --shadow-card:
+    0 20px 60px -20px oklch(0 0 0 / 0.6), 0 0 0 1px oklch(1 0 0 / 0.05);
 }
 
 :root {
@@ -55,7 +58,7 @@
   --popover-foreground: oklch(0.98 0.005 250);
   /* Accent (single source of truth for all primary visuals). Overridden live by
      src/config/theme.ts — this is just the default palette ("Electric Blue"). */
-  --primary: #2E6EFF;
+  --primary: #2e6eff;
   --primary-foreground: oklch(0.98 0.01 250);
   --secondary: oklch(0.28 0.04 265);
   --secondary-foreground: oklch(0.98 0.005 250);
@@ -79,17 +82,35 @@
   * {
     border-color: var(--color-border);
   }
-  html, body {
+  html,
+  body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      sans-serif;
     -webkit-font-smoothing: antialiased;
   }
   body {
     background-image:
-      radial-gradient(circle at 15% 10%, color-mix(in oklch, var(--primary) 18%, transparent), transparent 45%),
-      radial-gradient(circle at 90% 90%, oklch(0.82 0.15 200 / 0.15), transparent 45%),
-      radial-gradient(circle at 50% 50%, oklch(0.88 0.24 130 / 0.05), transparent 60%);
+      radial-gradient(
+        circle at 15% 10%,
+        color-mix(in oklch, var(--primary) 18%, transparent),
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 90% 90%,
+        oklch(0.82 0.15 200 / 0.15),
+        transparent 45%
+      ),
+      radial-gradient(
+        circle at 50% 50%,
+        oklch(0.88 0.24 130 / 0.05),
+        transparent 60%
+      );
     min-height: 100dvh;
   }
 }
@@ -107,52 +128,118 @@
   box-shadow: var(--shadow-glow-cyan);
 }
 @utility text-gradient-neon {
-  background: linear-gradient(120deg, var(--color-primary), var(--color-cyan) 50%, var(--color-neon));
+  background: linear-gradient(
+    120deg,
+    var(--color-primary),
+    var(--color-cyan) 50%,
+    var(--color-neon)
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
 @utility card-surface {
-  background: linear-gradient(160deg, oklch(0.24 0.04 265 / 0.9), oklch(0.18 0.03 265 / 0.9));
+  background: linear-gradient(
+    160deg,
+    oklch(0.24 0.04 265 / 0.9),
+    oklch(0.18 0.03 265 / 0.9)
+  );
   border: 1px solid oklch(1 0 0 / 0.08);
   box-shadow: var(--shadow-card);
   backdrop-filter: blur(12px);
 }
 
 @keyframes pop-in {
-  0% { transform: scale(0.9); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 @keyframes slide-up {
-  0% { transform: translateY(16px); opacity: 0; }
-  100% { transform: translateY(0); opacity: 1; }
+  0% {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 40%, transparent); }
-  50% { box-shadow: 0 0 40px color-mix(in oklch, var(--primary) 80%, transparent); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px color-mix(in oklch, var(--primary) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 40px color-mix(in oklch, var(--primary) 80%, transparent);
+  }
 }
 @keyframes progress-move {
-  0% { width: 0%; }
-  100% { width: 65%; }
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 65%;
+  }
 }
 @keyframes menu-in {
-  0% { transform: scaleY(0.55) scaleX(0.96) translateY(-8px); opacity: 0; }
-  60% { opacity: 1; }
-  100% { transform: scaleY(1) scaleX(1) translateY(0); opacity: 1; }
+  0% {
+    transform: scaleY(0.55) scaleX(0.96) translateY(-8px);
+    opacity: 0;
+  }
+  60% {
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(1) scaleX(1) translateY(0);
+    opacity: 1;
+  }
 }
 @keyframes equalize {
-  0%, 100% { transform: scaleY(0.3); }
-  50% { transform: scaleY(1); }
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
 }
 @keyframes shake {
-  0%, 100% { transform: translateX(0); }
-  20%, 60% { transform: translateX(-6px); }
-  40%, 80% { transform: translateX(6px); }
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20%,
+  60% {
+    transform: translateX(-6px);
+  }
+  40%,
+  80% {
+    transform: translateX(6px);
+  }
 }
 
-@utility animate-pop-in { animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
-@utility animate-slide-up { animation: slide-up 0.35s ease-out; }
-@utility animate-menu-in { animation: menu-in 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.1); transform-origin: top center; }
-@utility animate-pulse-glow { animation: pulse-glow 2.4s ease-in-out infinite; }
-@utility animate-progress { animation: progress-move 8s linear infinite alternate; }
-@utility animate-equalize { animation: equalize 0.9s ease-in-out infinite; transform-origin: bottom; }
+@utility animate-pop-in {
+  animation: pop-in 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@utility animate-slide-up {
+  animation: slide-up 0.35s ease-out;
+}
+@utility animate-menu-in {
+  animation: menu-in 0.16s cubic-bezier(0.2, 0.9, 0.3, 1.1);
+  transform-origin: top center;
+}
+@utility animate-pulse-glow {
+  animation: pulse-glow 2.4s ease-in-out infinite;
+}
+@utility animate-progress {
+  animation: progress-move 8s linear infinite alternate;
+}
+@utility animate-equalize {
+  animation: equalize 0.9s ease-in-out infinite;
+  transform-origin: bottom;
+}

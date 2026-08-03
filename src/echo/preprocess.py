@@ -15,6 +15,7 @@ Usage:
 
 import ast
 import sys
+
 import pandas as pd
 
 from .config import PROCESSED_DIR, RAW_DIR, ensure_dirs
@@ -38,9 +39,7 @@ def _parse_list(value) -> list[str]:
 def _load_tracks() -> pd.DataFrame:
     path = RAW_DIR / "tracks.csv"
     if not path.exists():
-        sys.exit(
-            f"{path} not found. Run `uv run python -m echo.download` first."
-        )
+        sys.exit(f"{path} not found. Run `uv run python -m echo.download` first.")
     print(f"Loading {path.name} ...")
     return pd.read_csv(path)
 
@@ -54,7 +53,7 @@ def _load_artist_genres() -> dict[str, list[str]]:
     print(f"Loading {path.name} for genres ...")
     artists = pd.read_csv(path, usecols=["id", "genres"])
     artists["genres"] = artists["genres"].map(_parse_list)
-    return dict(zip(artists["id"], artists["genres"]))
+    return dict(zip(artists["id"], artists["genres"], strict=False))
 
 
 def preprocess() -> pd.DataFrame:
@@ -70,13 +69,16 @@ def preprocess() -> pd.DataFrame:
     # Derive year / decade from release_date.
     year = pd.to_datetime(df["release_date"], errors="coerce").dt.year
     # Fall back to a plain 4-digit year when the date failed to parse.
-    year = year.fillna(pd.to_numeric(df["release_date"].astype(str).str[:4], errors="coerce"))
+    year = year.fillna(
+        pd.to_numeric(df["release_date"].astype(str).str[:4], errors="coerce")
+    )
     df["year"] = year.astype("Int64")
     df["decade"] = (df["year"] // 10 * 10).astype("Int64")
 
     # Attach all genres from all credited artists.
     genre_map = _load_artist_genres()
     if genre_map and "id_artists" in df.columns:
+
         def all_genres(ids: list[str]) -> list[str]:
             genres_set = set()
             for aid in ids:
@@ -84,20 +86,38 @@ def preprocess() -> pd.DataFrame:
                 if genres:
                     genres_set.update(genres)
             return sorted(list(genres_set))
+
         df["genres"] = df["id_artists"].map(all_genres)
 
     # Drop rows we can never use in the game.
     before = len(df)
     df = df.dropna(subset=["name", "artist_name", "year"])
     df = df[df["name"].str.strip().astype(bool)]
-    df = df.drop_duplicates(subset=["id"]) if "id" in df.columns else df.drop_duplicates()
+    df = (
+        df.drop_duplicates(subset=["id"])
+        if "id" in df.columns
+        else df.drop_duplicates()
+    )
     print(f"Dropped {before - len(df):,} unusable/duplicate rows -> {len(df):,} kept.")
 
     # Keep a focused set of columns for the database.
-    keep = [c for c in [
-        "id", "name", "artist_name", "artists", "id_artists",
-        "year", "decade", "genres", "popularity", "duration_ms", "explicit",
-    ] if c in df.columns]
+    keep = [
+        c
+        for c in [
+            "id",
+            "name",
+            "artist_name",
+            "artists",
+            "id_artists",
+            "year",
+            "decade",
+            "genres",
+            "popularity",
+            "duration_ms",
+            "explicit",
+        ]
+        if c in df.columns
+    ]
     df = df[keep].reset_index(drop=True)
 
     df.to_parquet(OUTPUT_PATH, index=False)

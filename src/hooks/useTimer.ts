@@ -8,7 +8,7 @@ import { useEffect, useState, useRef } from "react";
 export function useTimer(
   isActive: boolean,
   duration: number = 30,
-  onComplete?: () => void
+  onComplete?: () => void,
 ) {
   const [timeLeft, setTimeLeft] = useState(duration);
   const [isRunning, setIsRunning] = useState(isActive);

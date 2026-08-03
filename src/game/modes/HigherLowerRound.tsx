@@ -7,6 +7,9 @@
 import { useState } from "react";
 import { TrendingUp } from "lucide-react";
 
+import { AlbumArt } from "@/components/game/AlbumArt";
+import { useSongArt } from "@/hooks/useSongArt";
+import { Button } from "@/components/ui/button";
 import type { Song } from "@/types/game";
 import type { RoundProps } from "./types";
 
@@ -21,7 +24,12 @@ const METRIC = {
   value: (song: Song) => song.popularity ?? 0,
 };
 
-export function HigherLowerRound({ songs, player, round, onResult }: RoundProps) {
+export function HigherLowerRound({
+  songs,
+  player,
+  round,
+  onResult,
+}: RoundProps) {
   const [a, b] = songs;
   const [picked, setPicked] = useState<null | "a" | "b">(null);
 
@@ -76,12 +84,13 @@ export function HigherLowerRound({ songs, player, round, onResult }: RoundProps)
           >
             {correct ? "✅ Correct!" : "❌ Not quite"}
           </div>
-          <button
+          <Button
+            variant="action"
+            size="action"
             onClick={() => onResult({ correct, points: correct ? 1 : 0 })}
-            className="w-full rounded-2xl bg-neon py-4 text-lg font-black uppercase tracking-wide text-neon-foreground glow-primary transition active:scale-[0.98]"
           >
             Continue
-          </button>
+          </Button>
         </>
       )}
     </section>
@@ -101,6 +110,8 @@ function SongPick({
   isPicked: boolean;
   onPick: () => void;
 }) {
+  const artUrl = useSongArt(song); // lazily fetch this card's art if missing
+
   // Highlight after reveal: green for the correct one, red if wrongly picked.
   const ring = revealed
     ? isCorrect
@@ -116,22 +127,17 @@ function SongPick({
       disabled={revealed}
       className={`card-surface flex flex-col items-center gap-2 rounded-2xl p-3 text-center transition ${ring}`}
     >
-      {song.album_art_url ? (
-        <img
-          src={song.album_art_url}
-          alt={song.album_name || "Album art"}
-          className="aspect-square w-full rounded-xl object-cover shadow"
-          onError={(e) => (e.currentTarget.style.display = "none")}
-        />
-      ) : (
-        <div className="grid aspect-square w-full place-items-center rounded-xl bg-gradient-to-br from-primary/40 to-neon/30 text-4xl">
-          🎵
-        </div>
-      )}
+      <AlbumArt
+        src={artUrl}
+        alt={song.album_name || "Album art"}
+        className="aspect-square w-full rounded-xl object-cover shadow"
+      />
 
       <div className="min-h-[2.5rem]">
         <div className="line-clamp-1 text-sm font-black">{song.name}</div>
-        <div className="line-clamp-1 text-xs text-muted-foreground">{song.artist_name}</div>
+        <div className="line-clamp-1 text-xs text-muted-foreground">
+          {song.artist_name}
+        </div>
       </div>
 
       {revealed ? (
@@ -139,7 +145,9 @@ function SongPick({
           <TrendingUp className="h-4 w-4" /> {METRIC.value(song)}
         </div>
       ) : (
-        <span className="text-xs font-bold text-muted-foreground">Tap to pick</span>
+        <span className="text-xs font-bold text-muted-foreground">
+          Tap to pick
+        </span>
       )}
     </button>
   );

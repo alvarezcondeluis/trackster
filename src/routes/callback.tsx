@@ -14,7 +14,11 @@ import {
   getAuthErrorFromUrl,
   storeToken,
 } from "@/services/spotifyAuth";
-import { initializePlayer, loadSpotifySDK, startDeviceMonitor } from "@/services/spotifyWebSdk";
+import {
+  initializePlayer,
+  loadSpotifySDK,
+  startDeviceMonitor,
+} from "@/services/spotifyWebSdk";
 import { AlertCircle, CheckCircle, Loader } from "lucide-react";
 
 export const Route = createFileRoute("/callback")({
@@ -24,7 +28,7 @@ export const Route = createFileRoute("/callback")({
 function OAuthCallback() {
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "success" | "error">(
-    "loading"
+    "loading",
   );
   const [message, setMessage] = useState("");
 
@@ -81,7 +85,7 @@ function OAuthCallback() {
         console.error("❌ Callback error:", err);
         setStatus("error");
         setMessage(
-          err instanceof Error ? err.message : "Failed to get access token"
+          err instanceof Error ? err.message : "Failed to get access token",
         );
         setTimeout(() => navigate({ to: "/" }), 3000);
       }
@@ -97,7 +101,9 @@ function OAuthCallback() {
           <>
             <Loader className="h-12 w-12 text-primary animate-spin" />
             <h1 className="text-2xl font-bold">Connecting to Spotify...</h1>
-            <p className="text-muted-foreground">Please wait while we complete your authorization.</p>
+            <p className="text-muted-foreground">
+              Please wait while we complete your authorization.
+            </p>
           </>
         )}
 
@@ -111,9 +117,13 @@ function OAuthCallback() {
         {status === "error" && (
           <>
             <AlertCircle className="h-12 w-12 text-destructive" />
-            <h1 className="text-2xl font-bold text-destructive">Connection Failed</h1>
+            <h1 className="text-2xl font-bold text-destructive">
+              Connection Failed
+            </h1>
             <p className="text-destructive">{message}</p>
-            <p className="text-sm text-muted-foreground">Redirecting you back...</p>
+            <p className="text-sm text-muted-foreground">
+              Redirecting you back...
+            </p>
           </>
         )}
       </div>

@@ -5,14 +5,24 @@
 
 import { useEffect, useState } from "react";
 import { GameState, Player, Song } from "@/types/game";
-import { fetchRandomSongs, checkBackendHealth } from "@/services/api";
-import { startSpotifyAuth, getStoredToken, clearToken } from "@/services/spotifyAuth";
+import { checkBackendHealth } from "@/services/api";
+import { takeSongs } from "@/services/songBuffer";
+import {
+  startSpotifyAuth,
+  getStoredToken,
+  clearToken,
+} from "@/services/spotifyAuth";
 import { useEra } from "@/hooks/useEra";
 import { useGameMode } from "@/hooks/useGameMode";
 import { setGameMode } from "@/config/gameMode";
 import { GAME_MODES } from "@/game/modes/registry";
 import type { GameModeId, RoundResult } from "@/game/modes/types";
-import { loadSpotifySDK, initializePlayer, startDeviceMonitor, isPlayerReady } from "@/services/spotifyWebSdk";
+import {
+  loadSpotifySDK,
+  initializePlayer,
+  startDeviceMonitor,
+  isPlayerReady,
+} from "@/services/spotifyWebSdk";
 import { Lobby } from "./Lobby";
 import { ModeSelect } from "./ModeSelect";
 import { Leaderboard } from "./Leaderboard";
@@ -34,7 +44,7 @@ export function Game() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backendConnected, setBackendConnected] = useState(false);
-  const [isCheckingBackend, setIsCheckingBackend] = useState(true);  // Show loading while checking
+  const [isCheckingBackend, setIsCheckingBackend] = useState(true); // Show loading while checking
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
@@ -142,7 +152,9 @@ export function Game() {
         const isAuthError =
           err instanceof Error && err.message.includes("Authentication");
         if (isAuthError) {
-          console.warn("🔑 Stored token is invalid — clearing it. Please reconnect.");
+          console.warn(
+            "🔑 Stored token is invalid — clearing it. Please reconnect.",
+          );
           clearToken();
           setError("Your Spotify session expired. Please reconnect Spotify.");
         }
@@ -172,18 +184,21 @@ export function Game() {
 
     const t0 = performance.now();
     try {
-      // SDK plays by track ID and audio-free modes don't play at all — so we
-      // never need the backend's (Spotify-backed) preview hunt.
-      const songs = await fetchRandomSongs(mode.songsPerRound, "medium", era);
+      const songs = await takeSongs(mode.songsPerRound, "medium", era);
       const ms = Math.round(performance.now() - t0);
-      console.log(`⏱️ ${songs.length} song(s) ready in ${ms}ms (mode: ${modeId}, era: ${era})`);
+      console.log(
+        `⏱️ ${songs.length} song(s) ready in ${ms}ms (mode: ${modeId}, era: ${era})`,
+      );
       songs.forEach((s) =>
-        console.log(`⭐ Popularity ${s.popularity ?? "?"} — ${s.name} · ${s.artist_name}`),
+        console.log(
+          `⭐ Popularity ${s.popularity ?? "?"} — ${s.name} · ${s.artist_name}`,
+        ),
       );
       setCurrentSongs(songs);
     } catch (err) {
       const ms = Math.round(performance.now() - t0);
-      const message = err instanceof Error ? err.message : "Failed to fetch songs";
+      const message =
+        err instanceof Error ? err.message : "Failed to fetch songs";
       setError(message);
       console.error(`❌ Song fetch failed after ${ms}ms:`, err);
     } finally {
@@ -192,7 +207,7 @@ export function Game() {
   };
 
   const chooseMode = (id: GameModeId) => {
-    setGameMode(id);       // persist + reactive
+    setGameMode(id); // persist + reactive
     setGameState("setup"); // proceed to the lobby
   };
 
@@ -233,7 +248,7 @@ export function Game() {
       setError(
         err instanceof Error
           ? err.message
-          : "Failed to start Spotify authentication"
+          : "Failed to start Spotify authentication",
       );
       setIsAuthenticating(false);
     }
@@ -256,8 +271,10 @@ export function Game() {
     if (result.points > 0 && currentPlayer) {
       setPlayers((p) =>
         p.map((x) =>
-          x.id === currentPlayer.id ? { ...x, score: x.score + result.points } : x
-        )
+          x.id === currentPlayer.id
+            ? { ...x, score: x.score + result.points }
+            : x,
+        ),
       );
     }
     setGameState("leaderboard");
@@ -270,7 +287,6 @@ export function Game() {
     setCurrentSongs(null);
     setGameState("round");
   };
-
 
   // Loading while checking backend
   if (isCheckingBackend) {
@@ -285,12 +301,18 @@ export function Game() {
               stroke="currentColor"
             >
               <circle cx="12" cy="12" r="10" strokeWidth="2" opacity="0.3" />
-              <path d="M12 2C6.48 2 2 6.48 2 12" strokeWidth="2" strokeLinecap="round" />
+              <path
+                d="M12 2C6.48 2 2 6.48 2 12"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
             </svg>
           </div>
           <div>
             <h2 className="text-lg font-bold">Initializing Echo...</h2>
-            <p className="text-sm text-muted-foreground mt-1">Connecting to backend</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Connecting to backend
+            </p>
           </div>
         </div>
       </main>
@@ -307,7 +329,10 @@ export function Game() {
             <div className="font-semibold text-destructive">Backend Error</div>
             <div className="text-sm text-destructive/80">{error}</div>
             <div className="text-xs text-destructive/60 mt-2">
-              Make sure FastAPI is running: <code className="bg-black/20 px-2 py-1 rounded">uv run python -m echo.api.main</code>
+              Make sure FastAPI is running:{" "}
+              <code className="bg-black/20 px-2 py-1 rounded">
+                uv run python -m echo.api.main
+              </code>
             </div>
           </div>
         </div>

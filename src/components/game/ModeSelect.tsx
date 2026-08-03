@@ -18,7 +18,9 @@ export function ModeSelect({ current, onChoose }: ModeSelectProps) {
         <h2 className="text-2xl font-black tracking-tight text-gradient-neon">
           Choose a mode
         </h2>
-        <p className="text-sm text-muted-foreground">Pick how you want to play.</p>
+        <p className="text-sm text-muted-foreground">
+          Pick how you want to play.
+        </p>
       </div>
 
       {GAME_MODE_LIST.map((mode) => {
@@ -29,7 +31,9 @@ export function ModeSelect({ current, onChoose }: ModeSelectProps) {
             key={mode.id}
             onClick={() => onChoose(mode.id)}
             className={`group card-surface relative overflow-hidden rounded-2xl p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.99] ${
-              active ? "ring-2 ring-primary" : "ring-1 ring-transparent hover:ring-primary/40"
+              active
+                ? "ring-2 ring-primary"
+                : "ring-1 ring-transparent hover:ring-primary/40"
             }`}
           >
             {/* Color wash — invisible until hover (or when active) */}
@@ -57,7 +61,9 @@ export function ModeSelect({ current, onChoose }: ModeSelectProps) {
                     {solo ? "Solo OK" : "2+ players"}
                   </span>
                 </div>
-                <p className="mt-0.5 text-xs text-muted-foreground">{mode.description}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {mode.description}
+                </p>
               </div>
 
               <span className="shrink-0 translate-x-0 text-lg text-muted-foreground opacity-40 transition-all duration-200 group-hover:translate-x-1 group-hover:text-primary group-hover:opacity-100">

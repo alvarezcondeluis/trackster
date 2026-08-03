@@ -133,7 +133,7 @@ export function Lobby({
       <button
         onClick={startMatch}
         disabled={!canStart}
-        className="w-full rounded-2xl bg-neon py-4 text-lg font-black uppercase tracking-wide text-neon-foreground transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none enabled:glow-primary enabled:animate-pulse-glow"
+        className="w-full rounded-2xl bg-primary py-4 text-lg font-black uppercase tracking-wide text-primary-foreground transition-all active:scale-[0.98] enabled:hover:-translate-y-0.5 enabled:hover:brightness-110 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none enabled:glow-primary enabled:animate-pulse-glow"
       >
         {spotifyBlocking
           ? "Connect Spotify First"

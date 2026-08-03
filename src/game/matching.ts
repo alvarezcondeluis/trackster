@@ -60,7 +60,11 @@ export function similarity(a: string, b: string): number {
  * Is the typed guess a good-enough match for the song's title (or artist)?
  * @param threshold title-match ratio required (default 0.8)
  */
-export function isNameCorrect(guess: string, song: Song, threshold = 0.8): boolean {
+export function isNameCorrect(
+  guess: string,
+  song: Song,
+  threshold = 0.8,
+): boolean {
   const g = normalize(guess);
   if (g.length < 2) return false;
 

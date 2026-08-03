@@ -16,11 +16,12 @@ export interface Song {
   artist_name: string;
   spotify_uri: string;
   preview_url?: string;
-  album_art_url?: string;  // Album cover image
+  album_art_url?: string; // Album cover image
   album_name?: string;
   year: number;
   genres?: string[];
   popularity?: number;
+  duration_ms?: number;
 }
 
 export interface GameContextType {

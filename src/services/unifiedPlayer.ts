@@ -7,20 +7,25 @@
  * depend on the SDK module directly.
  */
 
-import { playSong, pausePlayback, resumePlayback } from "@/services/spotifyWebSdk";
+import {
+  playSong,
+  pausePlayback,
+  resumePlayback,
+} from "@/services/spotifyWebSdk";
 
 let isPlaying = false;
 
 export async function playTrack(options: {
   spotifyUri: string;
   songName?: string;
+  positionMs?: number;
 }): Promise<void> {
-  const { spotifyUri, songName } = options;
+  const { spotifyUri, songName, positionMs } = options;
   if (!spotifyUri) {
     throw new Error("❌ Missing Spotify URI");
   }
   console.log(`🎵 Playing via Spotify Web SDK: ${songName ?? spotifyUri}`);
-  await playSong(spotifyUri);
+  await playSong(spotifyUri, positionMs);
   isPlaying = true;
 }
 

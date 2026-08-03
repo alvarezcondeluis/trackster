@@ -11,7 +11,7 @@ interface LeaderboardProps {
 export function Leaderboard({ players, round, onNext }: LeaderboardProps) {
   const ranked = useMemo(
     () => [...players].sort((a, b) => b.score - a.score),
-    [players]
+    [players],
   );
   const topScore = ranked[0]?.score ?? 0;
 
@@ -45,7 +45,9 @@ export function Leaderboard({ players, round, onNext }: LeaderboardProps) {
                 >
                   {isLeader ? <Crown className="h-5 w-5" /> : i + 1}
                 </div>
-                <span className="truncate text-base font-semibold">{p.name}</span>
+                <span className="truncate text-base font-semibold">
+                  {p.name}
+                </span>
               </div>
               <div className="flex items-baseline gap-1">
                 <span
@@ -55,7 +57,9 @@ export function Leaderboard({ players, round, onNext }: LeaderboardProps) {
                 >
                   {p.score}
                 </span>
-                <span className="text-xs font-semibold text-muted-foreground">pts</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  pts
+                </span>
               </div>
             </li>
           );

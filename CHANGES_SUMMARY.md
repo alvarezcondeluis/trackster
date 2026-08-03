@@ -14,12 +14,12 @@
   }): Promise<PlaybackMethod> {
     const { spotifyUri, previewUrl, songName } = options;
     const { isSdkMode, isPreviewMode } = getPlaybackConfig();
-  
+
     let method = determinePlaybackMethod(previewUrl);
     currentMethod = method;
-  
+
     console.log(`🎵 Playing via ${method === "preview" ? "⚡ Preview" : "🎵 SDK"}: ${songName}`);
-  
+
     try {
       // PREVIEW PIPELINE
       if (isPreviewMode) {
@@ -49,7 +49,7 @@
         };
         return "preview";
       }
-  
+
       // SDK PIPELINE
       if (isSdkMode) {
         if (!spotifyUri) {
@@ -65,7 +65,7 @@
         };
         return "sdk";
       }
-  
+
       throw new Error("❌ Invalid playback configuration");
     } catch (error) {
       console.error(`❌ ${method.toUpperCase()} pipeline failed:`, error);
@@ -75,6 +75,7 @@
 ```
 
 **Key Points:**
+
 - ✨ NEW: When preview_url is missing, tries SDK instead
 - ✨ NEW: Returns actual method used so caller knows
 - ⏱️ Duration set to 30s for SDK (timer will stop playback)
@@ -215,20 +216,24 @@
 ## No Changes Needed In
 
 ### `src/components/game/Game.tsx`
+
 - ✅ Timer already stops at 30 seconds
 - ✅ No validation needed (delegated to Playing component)
 - ✅ Already imports playTrack correctly
 
 ### `src/services/spotifyWebSdk.ts`
+
 - ✅ playSong() already works
 - ✅ pausePlayback() already works
 - ✅ Device health monitoring still works
 
 ### `src/components/game/Revealed.tsx`
+
 - ✅ No changes needed
 - ✅ Shows song info same way
 
 ### `src/trackster/services/song_service.py`
+
 - ✅ Already tries to fetch preview URL from Spotify
 - ✅ Backend already returns songs with/without preview_url
 
@@ -237,6 +242,7 @@
 ## Test Cases
 
 ### Test 1: Preview Available
+
 ```
 Song has preview_url
   ↓
@@ -250,6 +256,7 @@ Audio plays instantly
 ```
 
 ### Test 2: Preview Missing (Fallback)
+
 ```
 Song has NO preview_url (null)
   ↓
@@ -265,6 +272,7 @@ Audio plays via Spotify (1-2s delay)
 ```
 
 ### Test 3: Missing Song ID
+
 ```
 Song has NO id
   ↓
@@ -278,11 +286,11 @@ Play button disabled
 
 ## Lines of Code Changed
 
-| File | Lines Changed | Type |
-|------|---------------|------|
-| `unifiedPlayer.ts` | 50 lines | Added fallback logic |
-| `Playing.tsx` | 40 lines | Added state, updated display |
-| **Total** | **~90 lines** | Modest changes |
+| File               | Lines Changed | Type                         |
+| ------------------ | ------------- | ---------------------------- |
+| `unifiedPlayer.ts` | 50 lines      | Added fallback logic         |
+| `Playing.tsx`      | 40 lines      | Added state, updated display |
+| **Total**          | **~90 lines** | Modest changes               |
 
 ---
 

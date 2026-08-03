@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import base64
-import io
-import sys
 import time
 from datetime import datetime
 
@@ -44,9 +42,7 @@ def get_spotify_access_token() -> str:
         )
 
     # Base64 encode credentials for HTTP Basic Auth
-    credentials = base64.b64encode(
-        f"{client_id}:{client_secret}".encode()
-    ).decode()
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
 
     response = httpx.post(
         "https://accounts.spotify.com/api/token",
@@ -56,9 +52,7 @@ def get_spotify_access_token() -> str:
     )
 
     if response.status_code != 200:
-        raise ValueError(
-            f"Spotify auth failed: {response.status_code} {response.text}"
-        )
+        raise ValueError(f"Spotify auth failed: {response.status_code} {response.text}")
 
     return response.json()["access_token"]
 
@@ -91,7 +85,9 @@ def _enforce_rate_limit() -> None:
     _last_request_time = datetime.now()
 
 
-def get_track_preview_url(track_id: str, retry_count: int = 0, debug: bool = False) -> str | None:
+def get_track_preview_url(
+    track_id: str, retry_count: int = 0, debug: bool = False
+) -> str | None:
     """Fetch preview URL for a track from Spotify API.
 
     Caches results to avoid re-fetching. Enforces rate limiting based on Spotify's
@@ -148,7 +144,7 @@ def get_track_preview_url(track_id: str, retry_count: int = 0, debug: bool = Fal
                 if preview_url:
                     print(f"[DEBUG] ✅ Found preview URL: {preview_url[:80]}...")
                 else:
-                    print(f"[DEBUG] ❌ No preview URL available for this track")
+                    print("[DEBUG] ❌ No preview URL available for this track")
 
             return preview_url
 
@@ -164,7 +160,7 @@ def get_track_preview_url(track_id: str, retry_count: int = 0, debug: bool = Fal
             if debug:
                 print(f"[DEBUG] Rate limited (429). Spotify says wait {wait_time}s...")
             else:
-                print(f"Rate limited. Waiting {wait_time}s (per Spotify Retry-After header)...")
+                print(f"Rate limited. Waiting {wait_time}s (Spotify Retry-After)...")
 
             time.sleep(wait_time)
             return get_track_preview_url(track_id, retry_count + 1, debug)
@@ -235,7 +231,8 @@ def get_track_album_art(track_id: str, debug: bool = False) -> dict | None:
 
             if debug:
                 print(f"[DEBUG] ✅ Album: {result['album_name']}")
-                print(f"[DEBUG] Cover: {album_art_url[:80] if album_art_url else 'None'}...")
+                cover = album_art_url[:80] if album_art_url else "None"
+                print(f"[DEBUG] Cover: {cover}...")
 
             return result
 
@@ -286,16 +283,18 @@ def cache_album_art_to_supabase(
 
         # Upload to Supabase Storage
         if debug:
-            print(f"📤 Uploading to Supabase Storage...")
+            print("📤 Uploading to Supabase Storage...")
 
         file_name = f"{track_id}.jpg"
         path = f"album-art/{file_name}"
 
-        # Upload the file
+        # Upload the file. `upsert=true` makes re-caching idempotent: if the
+        # object already exists (e.g. a prior run uploaded it but the DB update
+        # failed) we overwrite it instead of erroring with 409 "Duplicate".
         supabase.storage.from_("album-art").upload(
             path=path,
             file=image_data,
-            file_options={"content-type": "image/jpeg"},
+            file_options={"content-type": "image/jpeg", "upsert": "true"},
         )
 
         if debug:
@@ -317,7 +316,7 @@ def cache_album_art_to_supabase(
             ).eq("id", track_id).execute()
 
             if debug:
-                print(f"✅ Updated songs table with cached URL")
+                print("✅ Updated songs table with cached URL")
         except Exception as update_error:
             if debug:
                 print(f"⚠️ Could not update songs table: {update_error}")

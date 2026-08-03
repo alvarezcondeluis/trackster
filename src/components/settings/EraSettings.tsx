@@ -36,7 +36,7 @@ export function EraSettings() {
   return (
     <div className="space-y-3">
       <h3 className="text-lg font-bold">Era</h3>
-       <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Only songs from this period.
       </p>
       <div ref={wrapRef} className="relative">
@@ -68,7 +68,7 @@ export function EraSettings() {
           >
             {ERAS.map((opt) => {
               const active = opt.key === era;
-              return  (
+              return (
                 <button
                   key={opt.key}
                   role="option"
@@ -90,7 +90,6 @@ export function EraSettings() {
           </div>
         )}
       </div>
-     
     </div>
   );
 }

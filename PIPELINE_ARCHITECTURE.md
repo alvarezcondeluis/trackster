@@ -3,6 +3,7 @@
 ## What Changed
 
 **Before:** Mixed pipelines based on data availability
+
 - Config said SDK mode
 - But if preview URL existed, it would use preview instead
 - This caused confusion about which playback method was actually running
@@ -30,12 +31,14 @@ spotifyPreviewPlayer.ts plays 30s MP3
 ```
 
 **Requirements:**
+
 - ✅ No Spotify authentication
 - ✅ No device registration
 - ✅ Preview URL must exist (99% of songs)
 - ✅ Works offline
 
 **Flow Stops If:**
+
 - Song has no preview URL → Error "Preview URL not available"
 
 ---
@@ -59,12 +62,14 @@ spotifyWebSdk.ts plays via Spotify
 ```
 
 **Requirements:**
+
 - ✅ Spotify OAuth authentication
 - ✅ Active device registration
 - ✅ Spotify URI (song.id)
 - ✅ Spotify Premium (for some regions)
 
 **Flow Stops If:**
+
 - Song has no ID → Error "SDK mode requires song ID"
 - No auth token → Redirect to Spotify login
 - Device disconnected → Reconnect via health monitor
@@ -76,7 +81,7 @@ spotifyWebSdk.ts plays via Spotify
 **File:** `src/config/playback.ts`
 
 ```typescript
-export const PLAYBACK_MODE: PlaybackMode = "sdk";  // ← Change this
+export const PLAYBACK_MODE: PlaybackMode = "sdk"; // ← Change this
 
 // "hidden-audio" = Preview pipeline
 // "sdk" = SDK pipeline
@@ -106,6 +111,7 @@ npm run dev
 Open console on app load. You'll see:
 
 **Preview Mode:**
+
 ```
 🎵 Playback Pipeline: ⚡ Preview (30s clips)
 🔍 Backend health check (attempt 1/3)...
@@ -113,6 +119,7 @@ Open console on app load. You'll see:
 ```
 
 **SDK Mode:**
+
 ```
 🎵 Playback Pipeline: 🎵 SDK (Full Songs)
 🔍 Backend health check (attempt 1/3)...
@@ -124,50 +131,58 @@ Open console on app load. You'll see:
 ### If Playing Fails
 
 **Preview Pipeline errors:**
+
 ```
 ❌ Preview mode enabled but song has no preview URL
 ```
+
 → Song lacks preview_url field in database
 
 **SDK Pipeline errors:**
+
 ```
 ❌ SDK mode enabled but missing Spotify URI
 ```
+
 → Song lacks id field in database
 
 ```
 ❌ Device disconnected! Attempting to reconnect...
 ```
+
 → Spotify device lost connection (health monitor will retry)
 
 ---
 
 ## Pipeline Separation Benefits
 
-| Issue | Before | After |
-|-------|--------|-------|
-| **Config vs Reality** | Config said SDK, but preview played | Config always decides |
-| **Debugging** | Unclear which path was executing | Clear error messages for wrong path |
-| **Fallback Confusion** | SDK failed → silently switched to preview | Explicit error if config wrong |
-| **Device Management** | Devices could disconnect silently | Health monitor + clear logs |
-| **Performance** | Mixed behavior was unpredictable | Consistent behavior per mode |
+| Issue                  | Before                                    | After                               |
+| ---------------------- | ----------------------------------------- | ----------------------------------- |
+| **Config vs Reality**  | Config said SDK, but preview played       | Config always decides               |
+| **Debugging**          | Unclear which path was executing          | Clear error messages for wrong path |
+| **Fallback Confusion** | SDK failed → silently switched to preview | Explicit error if config wrong      |
+| **Device Management**  | Devices could disconnect silently         | Health monitor + clear logs         |
+| **Performance**        | Mixed behavior was unpredictable          | Consistent behavior per mode        |
 
 ---
 
 ## Toggling Between Modes
 
 ### Option 1: Dev Time (Quick)
+
 ```typescript
 // src/config/playback.ts
-export const PLAYBACK_MODE: PlaybackMode = "hidden-audio";  // ← Toggle here
+export const PLAYBACK_MODE: PlaybackMode = "hidden-audio"; // ← Toggle here
 ```
 
 ### Option 2: Runtime (Future)
+
 To let users choose at runtime:
+
 1. Save mode to localStorage
 2. Load on app start
 3. Update config dynamically
-(This requires updating the Lobby component to actually use the PlaybackSettings selection)
+   (This requires updating the Lobby component to actually use the PlaybackSettings selection)
 
 ---
 

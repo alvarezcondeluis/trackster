@@ -2,10 +2,12 @@
 """Test Spotify API connection and preview URL fetching."""
 
 import sys
+
 from src.echo.services.spotify import (
     get_spotify_access_token,
     get_track_preview_url,
 )
+
 
 def test_spotify():
     print("🔍 Testing Spotify API Connection...\n")
@@ -16,7 +18,7 @@ def test_spotify():
         token = get_spotify_access_token()
         print(f"✅ Got access token: {token[:20]}...\n")
     except ValueError as e:
-        print(f"❌ Failed to get access token:")
+        print("❌ Failed to get access token:")
         print(f"   {e}\n")
         print("⚠️  Make sure your .env has:")
         print("   SPOTIFY_CLIENT_ID=your_id")
@@ -35,11 +37,12 @@ def test_spotify():
             print(f"\n✅ Got preview URL: {preview_url[:80]}...\n")
             return True
         else:
-            print(f"\n⚠️  Track found but no preview URL available\n")
+            print("\n⚠️  Track found but no preview URL available\n")
             return True  # This is OK - not all tracks have previews
     except Exception as e:
         print(f"\n❌ Failed to fetch preview URL: {e}\n")
         return False
+
 
 if __name__ == "__main__":
     success = test_spotify()

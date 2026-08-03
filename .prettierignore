@@ -1,0 +1,27 @@
+# Build output
+dist
+.output
+.vinxi
+.wrangler
+.vite
+
+# Dependencies
+node_modules
+
+# Generated (vendored / auto-generated — do not reformat)
+src/routeTree.gen.ts
+src/components/ui/**
+
+# Data & notebooks
+data
+reports
+*.ipynb
+
+# Python / envs
+.venv
+__pycache__
+
+# Lockfiles
+pnpm-lock.yaml
+bun.lock
+uv.lock

@@ -23,7 +23,7 @@ let healthCheckInterval: NodeJS.Timeout | null = null;
 export function loadSpotifySDK(): Promise<void> {
   return new Promise((resolve, reject) => {
     // Check if SDK already loaded
-    if ((window as any).Spotify) {
+    if (window.Spotify) {
       console.log("✅ Spotify SDK already loaded");
       resolve();
       return;
@@ -32,7 +32,7 @@ export function loadSpotifySDK(): Promise<void> {
     console.log("📥 Loading Spotify Web Playback SDK...");
 
     // Define the callback that Spotify SDK will call when ready
-    (window as any).onSpotifyWebPlaybackSDKReady = () => {
+    window.onSpotifyWebPlaybackSDKReady = () => {
       console.log("✅ Spotify SDK ready callback fired");
       resolve();
     };
@@ -59,14 +59,14 @@ export function loadSpotifySDK(): Promise<void> {
  */
 export async function initializePlayer(
   accessToken: string,
-  playerName: string = "Echo"
+  playerName: string = "Echo",
 ): Promise<void> {
   if (!accessToken) {
     throw new Error("Access token required to initialize player");
   }
 
   // Make sure SDK is loaded (will be instant if preloaded)
-  if (!(window as any).Spotify) {
+  if (!window.Spotify) {
     console.log("⏳ SDK not yet loaded, loading now...");
     await loadSpotifySDK();
   }
@@ -74,9 +74,9 @@ export async function initializePlayer(
   console.log("🎵 Initializing Spotify player...");
 
   return new Promise((resolve, reject) => {
-    // Local ref (typed any from the SDK constructor) so the listener setup below
-    // isn't tripped up by the module-level `player` being `Player | null`.
-    const p = new (window as any).Spotify.Player({
+    // Local ref so the listener setup below isn't tripped up by the module-level
+    // `player` being `Player | null`.
+    const p = new window.Spotify.Player({
       name: playerName,
       getOAuthToken: (callback: (token: string) => void) => {
         callback(accessToken);
@@ -86,50 +86,52 @@ export async function initializePlayer(
     player = p;
 
     // Error listener
-    p.addListener("initialization_error", ({ message }: any) => {
+    p.addListener("initialization_error", ({ message }) => {
       console.error("❌ Initialization error:", message);
       reject(new Error(message));
     });
 
-    p.addListener("authentication_error", ({ message }: any) => {
+    p.addListener("authentication_error", ({ message }) => {
       console.error("❌ Authentication error:", message);
       reject(new Error(message));
     });
 
-    p.addListener("account_error", ({ message }: any) => {
+    p.addListener("account_error", ({ message }) => {
       console.error("❌ Account error:", message);
       reject(new Error(message));
     });
 
     // Ready listener - fires when device is ready
-    p.addListener("ready", ({ device_id }: any) => {
+    p.addListener("ready", ({ device_id }) => {
       console.log("✅ Player ready. Device ID:", device_id);
       deviceId = device_id;
       resolve();
     });
 
     // Connection status listener - only log if state ACTUALLY changed
-    let lastLoggedState: any = null;
-    p.addListener("player_state_changed", (state: any) => {
+    let lastLoggedState: { isPlaying: boolean; current?: string } | null = null;
+    p.addListener("player_state_changed", (state) => {
       if (!state) return;
+
+      const current = state.track_window.current_track?.name;
 
       // Only log if something meaningful changed
       const stateChanged =
         !lastLoggedState ||
         lastLoggedState.isPlaying !== !state.paused ||
-        lastLoggedState.current !== state.current_track?.name;
+        lastLoggedState.current !== current;
 
       if (stateChanged) {
-        console.log(state)
+        console.log(state);
         console.log("🎵 Player state changed:", {
           isPlaying: !state.paused,
-          current: state.current_track?.name,
+          current,
           position: state.position,
           duration: state.duration,
         });
         lastLoggedState = {
           isPlaying: !state.paused,
-          current: state.current_track?.name,
+          current,
         };
       }
     });
@@ -143,7 +145,11 @@ export async function initializePlayer(
  * Play a song using the Spotify URI (with retry logic for network errors)
  * @param spotifyUri - Spotify track URI (spotify:track:xxx)
  */
-export async function playSong(spotifyUri: string, retries: number = 3): Promise<void> {
+export async function playSong(
+  spotifyUri: string,
+  positionMs?: number,
+  retries: number = 3,
+): Promise<void> {
   if (!player) {
     throw new Error("Player not initialized. Click 'Connect Spotify' first.");
   }
@@ -171,15 +177,17 @@ export async function playSong(spotifyUri: string, retries: number = 3): Promise
           },
           body: JSON.stringify({
             uris: [spotifyUri],
-            position_ms: 4000,
+            position_ms: positionMs,
           }),
-        }
+        },
       );
 
       // 204 No Content = success (Spotify returns 204 for successful play)
       if (response.status === 204) {
         const playLatency = performance.now() - playStartTime;
-        console.log(`✅ Song playing successfully (latency: ${playLatency.toFixed(0)}ms)`);
+        console.log(
+          `✅ Song playing successfully (latency: ${playLatency.toFixed(0)}ms)`,
+        );
         return;
       }
 
@@ -190,16 +198,20 @@ export async function playSong(spotifyUri: string, retries: number = 3): Promise
 
       if (response.status === 404) {
         // Device doesn't exist - try to re-initialize
-        console.warn("⚠️ Device not found (404). Attempting to reinitialize...");
+        console.warn(
+          "⚠️ Device not found (404). Attempting to reinitialize...",
+        );
         throw new Error(
-          "Device not found. This may happen if Spotify disconnected. Please refresh and reconnect."
+          "Device not found. This may happen if Spotify disconnected. Please refresh and reconnect.",
         );
       }
 
       if (response.status === 400) {
         const errorBody = await response.json();
         console.error("❌ Bad request:", errorBody);
-        throw new Error(`Bad request: ${errorBody.error?.message || response.statusText}`);
+        throw new Error(
+          `Bad request: ${errorBody.error?.message || response.statusText}`,
+        );
       }
 
       // Other errors
@@ -218,7 +230,7 @@ export async function playSong(spotifyUri: string, retries: number = 3): Promise
       if (isNetworkError && attempt < retries) {
         const delay = Math.pow(2, attempt - 1) * 100;
         console.warn(
-          `⚠️ Network error playing (attempt ${attempt}/${retries}), retrying in ${delay}ms...`
+          `⚠️ Network error playing (attempt ${attempt}/${retries}), retrying in ${delay}ms...`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
@@ -250,12 +262,14 @@ export async function pausePlayback(retries: number = 3): Promise<void> {
           headers: {
             Authorization: `Bearer ${getStoredToken()}`,
           },
-        }
+        },
       );
 
       if (response.status === 204) {
         const pauseLatency = performance.now() - pauseStartTime;
-        console.log(`✅ Playback paused (latency: ${pauseLatency.toFixed(0)}ms)`);
+        console.log(
+          `✅ Playback paused (latency: ${pauseLatency.toFixed(0)}ms)`,
+        );
         return;
       }
 
@@ -273,7 +287,7 @@ export async function pausePlayback(retries: number = 3): Promise<void> {
       if (isNetworkError && attempt < retries) {
         const delay = Math.pow(2, attempt - 1) * 100;
         console.warn(
-          `⚠️ Network error pausing (attempt ${attempt}/${retries}), retrying in ${delay}ms...`
+          `⚠️ Network error pausing (attempt ${attempt}/${retries}), retrying in ${delay}ms...`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
@@ -305,12 +319,14 @@ export async function resumePlayback(retries: number = 3): Promise<void> {
           headers: {
             Authorization: `Bearer ${getStoredToken()}`,
           },
-        }
+        },
       );
 
       if (response.status === 204) {
         const resumeLatency = performance.now() - resumeStartTime;
-        console.log(`✅ Playback resumed (latency: ${resumeLatency.toFixed(0)}ms)`);
+        console.log(
+          `✅ Playback resumed (latency: ${resumeLatency.toFixed(0)}ms)`,
+        );
         return;
       }
 
@@ -328,7 +344,7 @@ export async function resumePlayback(retries: number = 3): Promise<void> {
       if (isNetworkError && attempt < retries) {
         const delay = Math.pow(2, attempt - 1) * 100;
         console.warn(
-          `⚠️ Network error resuming (attempt ${attempt}/${retries}), retrying in ${delay}ms...`
+          `⚠️ Network error resuming (attempt ${attempt}/${retries}), retrying in ${delay}ms...`,
         );
         await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
@@ -376,11 +392,14 @@ export async function checkDeviceHealth(): Promise<{
 
   try {
     const token = getStoredToken();
-    const response = await fetch("https://api.spotify.com/v1/me/player/devices", {
-      headers: {
-        Authorization: `Bearer ${token}`,
+    const response = await fetch(
+      "https://api.spotify.com/v1/me/player/devices",
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       return {
@@ -390,11 +409,13 @@ export async function checkDeviceHealth(): Promise<{
       };
     }
 
-    const data = await response.json();
-    const devices = data.devices || [];
+    const data = (await response.json()) as {
+      devices?: Array<{ id: string | null; name: string }>;
+    };
+    const devices = data.devices ?? [];
 
     // Check if our device is in the list
-    const ourDevice = devices.find((d: any) => d.id === deviceId);
+    const ourDevice = devices.find((d) => d.id === deviceId);
 
     if (ourDevice) {
       // Silent on success - only log when there's an issue

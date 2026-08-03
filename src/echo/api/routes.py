@@ -2,10 +2,18 @@
 
 from __future__ import annotations
 
+import random
+
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from ..models import Song
-from ..services.song_service import get_random_song, get_songs
+from ..services.song_service import (
+    count_songs,
+    get_song_art,
+    get_songs_sample,
+    rate_song,
+)
 
 router = APIRouter(prefix="/api")
 
@@ -18,12 +26,10 @@ def health_check() -> dict:
 
 @router.get("/spotify/test")
 def test_spotify_token(token: str) -> dict:
-    """Test a Spotify access token by calling the /me endpoint.
-
-    This verifies that the token is valid and can be used for playback.
-    """
+    """Test a Spotify access token by calling the /me endpoint."""
     try:
         import httpx
+
         response = httpx.get(
             "https://api.spotify.com/v1/me",
             headers={"Authorization": f"Bearer {token}"},
@@ -42,10 +48,7 @@ def test_spotify_token(token: str) -> dict:
                 "message": "Token is valid!",
             }
         elif response.status_code == 401:
-            return {
-                "valid": False,
-                "message": "Token is invalid or expired",
-            }
+            return {"valid": False, "message": "Token is invalid or expired"}
         else:
             return {
                 "valid": False,
@@ -53,66 +56,71 @@ def test_spotify_token(token: str) -> dict:
             }
 
     except Exception as e:
-        return {
-            "valid": False,
-            "message": f"Error testing token: {str(e)}",
-        }
+        return {"valid": False, "message": f"Error testing token: {str(e)}"}
 
 
-@router.get("/songs/random", response_model=Song)
-def random_song(
-    difficulty: str = "medium",
-    fetch_preview: bool = True,
-    era: str = "all",
-) -> Song:
-    """Get a random song for the game.
-
-    Query params:
-        difficulty: "easy" | "medium" | "hard"
-        fetch_preview: true (SDK mode - fetch from Spotify) | false (URI mode - skip API calls)
-        era: time period to draw from, e.g. "all" | "2000s" | "80s" | "last5"
-
-    Returns:
-        A Song object. If fetch_preview=true, includes preview_url.
-                       If fetch_preview=false, preview_url is None.
-
-    Examples:
-        GET /api/songs/random?difficulty=medium&fetch_preview=true
-        GET /api/songs/random?difficulty=easy&era=80s
-    """
+@router.get("/songs/count")
+def songs_count(difficulty: str = "medium", era: str = "all") -> int:
+    """Total songs matching the filters. The frontend caches this once per match."""
     try:
-        song = get_random_song(difficulty, fetch_preview=fetch_preview, era=era)
-        return song
+        return count_songs(difficulty, era)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        # Catch database errors, network issues, etc
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch song: {str(e)}"
-        )
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.get("/songs/batch", response_model=list[Song])
-def random_songs(
+def songs_batch(
     count: int = 1,
+    offset: int | None = None,
     difficulty: str = "medium",
-    fetch_preview: bool = True,
     era: str = "all",
 ) -> list[Song]:
-    """Get `count` random songs for the game.
+    """Return `count` songs from a random window.
 
-    count == 1 returns a single-song list (robust preview retry preserved);
-    count > 1 returns that many distinct songs (used by Higher or Lower).
+    The frontend supplies `offset` (rolled against the cached count). If omitted,
+    we compute a random one here so the endpoint still works standalone.
 
     Example:
-        GET /api/songs/batch?count=2&difficulty=medium&era=2000s
+        GET /api/songs/batch?offset=120&count=50&difficulty=medium&era=2000s
     """
-    if count < 1 or count > 10:
-        raise HTTPException(status_code=400, detail="count must be between 1 and 10")
     try:
-        return get_songs(count, difficulty, fetch_preview=fetch_preview, era=era)
+        if offset is None:
+            total = count_songs(difficulty, era)
+            offset = random.randint(0, max(0, total - count))
+        return get_songs_sample(offset, count, difficulty, era)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.get("/songs/{song_id}/art")
+def song_art(song_id: str) -> dict:
+    """Fetch (and cache) one song's album art on demand — lazy, on play."""
+    try:
+        return get_song_art(song_id)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch songs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch art: {e}") from e
+
+
+class RateRequest(BaseModel):
+    """Body for the rate endpoint: the player's chosen 0..5 score (0 = ban)."""
+
+    score: int
+
+
+@router.post("/songs/{song_id}/rate")
+def song_rate(song_id: str, body: RateRequest) -> dict:
+    """Set a song's rating to a chosen 0..5 score and return the new value.
+
+    Example:
+        POST /api/songs/6fuj.../rate   {"score": 5}  → {"rating_score": 5}
+    """
+    try:
+        return {"rating_score": rate_song(song_id, body.score)}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        # e.g. a DB check-constraint violation — surface it as a handled response
+        # (an unhandled 500 bypasses CORS, showing a misleading CORS error).
+        raise HTTPException(
+            status_code=502, detail=f"Failed to save rating: {e}"
+        ) from e

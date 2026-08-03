@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Debug script to test Spotify API and song service."""
 
+# ruff: noqa: E402  (throwaway script: imports interleaved with test blocks)
+
 from src.echo.services.song_service import get_random_song
 from src.echo.services.spotify import get_track_preview_url
 
@@ -14,7 +16,7 @@ print("-" * 60)
 
 try:
     song = get_random_song(difficulty="easy", debug=True)
-    print(f"\n✅ SUCCESS!")
+    print("\n✅ SUCCESS!")
     print(f"Song: {song.name}")
     print(f"Artist: {song.artist_name}")
     print(f"Year: {song.year}")
@@ -31,7 +33,7 @@ preview = get_track_preview_url(track_id, debug=True)
 if preview:
     print(f"\n✅ Preview found: {preview[:100]}...")
 else:
-    print(f"\n❌ No preview found")
+    print("\n❌ No preview found")
 
 # Test 3: Test a song from our database
 print("\n\n[TEST 3] Testing random song from database")
@@ -43,11 +45,11 @@ if response.data:
     song = response.data[0]
     print(f"Testing: {song['name']}")
     print(f"ID: {song['id']}")
-    preview = get_track_preview_url(song['id'], debug=True)
+    preview = get_track_preview_url(song["id"], debug=True)
     if preview:
         print(f"\n✅ Preview found: {preview[:100]}...")
     else:
-        print(f"\n❌ No preview found")
+        print("\n❌ No preview found")
 else:
     print("❌ No songs in database")
 

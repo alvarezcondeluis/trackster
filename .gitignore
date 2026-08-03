@@ -27,3 +27,20 @@ node_modules
 .output/
 .wrangler/
 .vite/
+
+# Editor / OS junk
+.vscode/
+.idea/
+.DS_Store
+
+# Python tool caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Logs & extra env files (keep an example if you add one)
+*.log
+.env.*
+!.env.example
